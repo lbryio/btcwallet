@@ -9,13 +9,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcwallet/chain"
-	"github.com/btcsuite/btcwallet/waddrmgr"
-	"github.com/btcsuite/btcwallet/walletdb"
-	"github.com/btcsuite/btcwallet/wtxmgr"
+	"github.com/lbryio/lbcd/chaincfg/chainhash"
+	"github.com/lbryio/lbcd/txscript"
+	"github.com/lbryio/lbcd/wire"
+	"github.com/lbryio/lbcwallet/chain"
+	"github.com/lbryio/lbcwallet/waddrmgr"
+	"github.com/lbryio/lbcwallet/walletdb"
+	"github.com/lbryio/lbcwallet/wtxmgr"
 )
 
 const (
@@ -39,7 +39,7 @@ func (w *Wallet) handleChainNotifications() {
 		// TODO(aakselrod): There's a race condition here, which
 		// happens when a reorg occurs between the
 		// rescanProgress notification and the last GetBlockHash
-		// call. The solution when using btcd is to make btcd
+		// call. The solution when using  is to make
 		// send blockconnected notifications with each block
 		// the way Neutrino does, and get rid of the loop. The
 		// other alternative is to check the final hash and,

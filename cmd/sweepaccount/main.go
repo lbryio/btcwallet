@@ -12,22 +12,22 @@ import (
 
 	"golang.org/x/crypto/ssh/terminal"
 
-	"github.com/btcsuite/btcd/btcjson"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/rpcclient"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
-	"github.com/btcsuite/btcwallet/internal/cfgutil"
-	"github.com/btcsuite/btcwallet/netparams"
-	"github.com/btcsuite/btcwallet/wallet/txauthor"
-	"github.com/btcsuite/btcwallet/wallet/txrules"
-	"github.com/btcsuite/btcwallet/wallet/txsizes"
 	"github.com/jessevdk/go-flags"
+	"github.com/lbryio/lbcd/btcjson"
+	"github.com/lbryio/lbcd/chaincfg/chainhash"
+	"github.com/lbryio/lbcd/rpcclient"
+	"github.com/lbryio/lbcd/txscript"
+	"github.com/lbryio/lbcd/wire"
+	btcutil "github.com/lbryio/lbcutil"
+	"github.com/lbryio/lbcwallet/internal/cfgutil"
+	"github.com/lbryio/lbcwallet/netparams"
+	"github.com/lbryio/lbcwallet/wallet/txauthor"
+	"github.com/lbryio/lbcwallet/wallet/txrules"
+	"github.com/lbryio/lbcwallet/wallet/txsizes"
 )
 
 var (
-	walletDataDirectory = btcutil.AppDataDir("btcwallet", false)
+	walletDataDirectory = btcutil.AppDataDir("lbcwallet", false)
 	newlineBytes        = []byte{'\n'}
 )
 

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btcsuite/btcwallet/walletdb"
-	_ "github.com/btcsuite/btcwallet/walletdb/bdb"
+	"github.com/lbryio/lbcwallet/walletdb"
+	_ "github.com/lbryio/lbcwallet/walletdb/bdb"
 )
 
 var (

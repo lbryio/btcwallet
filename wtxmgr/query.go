@@ -8,9 +8,9 @@ package wtxmgr
 import (
 	"fmt"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcutil"
-	"github.com/btcsuite/btcwallet/walletdb"
+	"github.com/lbryio/lbcd/chaincfg/chainhash"
+	btcutil "github.com/lbryio/lbcutil"
+	"github.com/lbryio/lbcwallet/walletdb"
 )
 
 // CreditRecord contains metadata regarding a transaction credit for a known

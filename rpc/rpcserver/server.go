@@ -8,11 +8,11 @@
 // Full documentation of the API implemented by this package is maintained in a
 // language-agnostic document:
 //
-//   https://github.com/btcsuite/btcwallet/blob/master/rpc/documentation/api.md
+//   https://github.com/lbryio/lbcwallet/blob/master/rpc/documentation/api.md
 //
 // Any API changes must be performed according to the steps listed here:
 //
-//   https://github.com/btcsuite/btcwallet/blob/master/rpc/documentation/serverchanges.md
+//   https://github.com/lbryio/lbcwallet/blob/master/rpc/documentation/serverchanges.md
 package rpcserver
 
 import (
@@ -26,20 +26,20 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/rpcclient"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
-	"github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/btcsuite/btcwallet/chain"
-	"github.com/btcsuite/btcwallet/internal/cfgutil"
-	"github.com/btcsuite/btcwallet/internal/zero"
-	"github.com/btcsuite/btcwallet/netparams"
-	pb "github.com/btcsuite/btcwallet/rpc/walletrpc"
-	"github.com/btcsuite/btcwallet/waddrmgr"
-	"github.com/btcsuite/btcwallet/wallet"
-	"github.com/btcsuite/btcwallet/walletdb"
+	"github.com/lbryio/lbcd/chaincfg/chainhash"
+	"github.com/lbryio/lbcd/rpcclient"
+	"github.com/lbryio/lbcd/txscript"
+	"github.com/lbryio/lbcd/wire"
+	btcutil "github.com/lbryio/lbcutil"
+	"github.com/lbryio/lbcutil/hdkeychain"
+	"github.com/lbryio/lbcwallet/chain"
+	"github.com/lbryio/lbcwallet/internal/cfgutil"
+	"github.com/lbryio/lbcwallet/internal/zero"
+	"github.com/lbryio/lbcwallet/netparams"
+	pb "github.com/lbryio/lbcwallet/rpc/walletrpc"
+	"github.com/lbryio/lbcwallet/waddrmgr"
+	"github.com/lbryio/lbcwallet/wallet"
+	"github.com/lbryio/lbcwallet/walletdb"
 )
 
 // Public API version constants
@@ -109,7 +109,7 @@ type walletServer struct {
 }
 
 // loaderServer provides RPC clients with the ability to load and close wallets,
-// as well as establishing a RPC connection to a btcd consensus server.
+// as well as establishing a RPC connection to a  consensus server.
 type loaderServer struct {
 	loader    *wallet.Loader
 	activeNet *netparams.Params
@@ -487,7 +487,7 @@ func (s *walletServer) SignTransaction(ctx context.Context, req *pb.SignTransact
 
 // BUGS:
 // - The transaction is not inspected to be relevant before publishing using
-//   sendrawtransaction, so connection errors to btcd could result in the tx
+//   sendrawtransaction, so connection errors to  could result in the tx
 //   never being added to the wallet database.
 // - Once the above bug is fixed, wallet will require a way to purge invalid
 //   transactions from the database when they are rejected by the network, other

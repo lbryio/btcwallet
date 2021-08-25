@@ -7,11 +7,11 @@ package wallet
 import (
 	"fmt"
 
-	"github.com/btcsuite/btcd/btcec"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
-	"github.com/btcsuite/btcwallet/waddrmgr"
+	"github.com/lbryio/lbcd/btcec"
+	"github.com/lbryio/lbcd/txscript"
+	"github.com/lbryio/lbcd/wire"
+	btcutil "github.com/lbryio/lbcutil"
+	"github.com/lbryio/lbcwallet/waddrmgr"
 )
 
 // ScriptForOutput returns the address, witness program and redeem script for a

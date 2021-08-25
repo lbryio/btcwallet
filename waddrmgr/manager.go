@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcutil"
-	"github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/btcsuite/btcwallet/internal/zero"
-	"github.com/btcsuite/btcwallet/snacl"
-	"github.com/btcsuite/btcwallet/walletdb"
+	"github.com/lbryio/lbcd/chaincfg"
+	btcutil "github.com/lbryio/lbcutil"
+	"github.com/lbryio/lbcutil/hdkeychain"
+	"github.com/lbryio/lbcwallet/internal/zero"
+	"github.com/lbryio/lbcwallet/snacl"
+	"github.com/lbryio/lbcwallet/walletdb"
 	"github.com/lightninglabs/neutrino/cache/lru"
 )
 

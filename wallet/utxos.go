@@ -9,12 +9,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/btcsuite/btcutil/psbt"
-	"github.com/btcsuite/btcwallet/waddrmgr"
-	"github.com/btcsuite/btcwallet/walletdb"
+	"github.com/lbryio/lbcd/txscript"
+	"github.com/lbryio/lbcd/wire"
+	"github.com/lbryio/lbcutil/hdkeychain"
+	"github.com/lbryio/lbcutil/psbt"
+	"github.com/lbryio/lbcwallet/waddrmgr"
+	"github.com/lbryio/lbcwallet/walletdb"
 )
 
 var (

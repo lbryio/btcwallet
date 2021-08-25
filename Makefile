@@ -1,4 +1,4 @@
-PKG := github.com/btcsuite/btcwallet
+PKG := github.com/lbryio/lbcwallet
 
 LINT_PKG := github.com/golangci/golangci-lint/cmd/golangci-lint
 GOACC_PKG := github.com/ory/go-acc
@@ -14,7 +14,7 @@ GOACC_COMMIT := 80342ae2e0fcf265e99e76bcc4efd022c7c3811b
 DEPGET := cd /tmp && GO111MODULE=on go get -v
 GOBUILD := GO111MODULE=on go build -v
 GOINSTALL := GO111MODULE=on go install -v
-GOTEST := GO111MODULE=on go test 
+GOTEST := GO111MODULE=on go test
 
 GOLIST := go list -deps $(PKG)/... | grep '$(PKG)'
 GOLIST_COVER := $$(go list -deps $(PKG)/... | grep '$(PKG)')
@@ -64,11 +64,11 @@ goimports:
 # ============
 
 build:
-	@$(call print, "Compiling btcwallet.")
+	@$(call print, "Compiling lbcwallet.")
 	$(GOBUILD) $(PKG)/...
 
 install:
-	@$(call print, "Installing btcwallet.")
+	@$(call print, "Installing lbcwallet.")
 	$(GOINSTALL) $(PKG)
 	$(GOINSTALL) $(PKG)/cmd/dropwtxmgr
 	$(GOINSTALL) $(PKG)/cmd/sweepaccount

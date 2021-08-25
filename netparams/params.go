@@ -5,8 +5,8 @@
 package netparams
 
 import (
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/lbryio/lbcd/chaincfg"
+	"github.com/lbryio/lbcd/wire"
 )
 
 // Params is used to group parameters for various networks such as the main
@@ -17,16 +17,16 @@ type Params struct {
 	RPCServerPort string
 }
 
-// MainNetParams contains parameters specific running btcwallet and
-// btcd on the main network (wire.MainNet).
+// MainNetParams contains parameters specific running lbcwallet and
+//  on the main network (wire.MainNet).
 var MainNetParams = Params{
 	Params:        &chaincfg.MainNetParams,
 	RPCClientPort: "8334",
 	RPCServerPort: "8332",
 }
 
-// TestNet3Params contains parameters specific running btcwallet and
-// btcd on the test network (version 3) (wire.TestNet3).
+// TestNet3Params contains parameters specific running lbcwallet and
+//  on the test network (version 3) (wire.TestNet3).
 var TestNet3Params = Params{
 	Params:        &chaincfg.TestNet3Params,
 	RPCClientPort: "18334",

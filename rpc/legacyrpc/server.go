@@ -18,10 +18,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/btcsuite/btcd/btcjson"
-	"github.com/btcsuite/btcwallet/chain"
-	"github.com/btcsuite/btcwallet/wallet"
 	"github.com/btcsuite/websocket"
+	"github.com/lbryio/lbcd/btcjson"
+	"github.com/lbryio/lbcwallet/chain"
+	"github.com/lbryio/lbcwallet/wallet"
 )
 
 type websocketClient struct {
@@ -79,7 +79,7 @@ type Server struct {
 
 // jsonAuthFail sends a message back to the client if the http auth is rejected.
 func jsonAuthFail(w http.ResponseWriter) {
-	w.Header().Add("WWW-Authenticate", `Basic realm="btcwallet RPC"`)
+	w.Header().Add("WWW-Authenticate", `Basic realm="lbcwallet RPC"`)
 	http.Error(w, "401 Unauthorized.", http.StatusUnauthorized)
 }
 
@@ -263,8 +263,8 @@ func (s *Server) SetChainServer(chainClient chain.Interface) {
 }
 
 // handlerClosure creates a closure function for handling requests of the given
-// method.  This may be a request that is handled directly by btcwallet, or
-// a chain server request that is handled by passing the request down to btcd.
+// method.  This may be a request that is handled directly by lbcwallet, or
+// a chain server request that is handled by passing the request down to .
 //
 // NOTE: These handlers do not handle special cases, such as the authenticate
 // method.  Each of these must be checked beforehand (the method is already
@@ -442,7 +442,7 @@ out:
 			switch req.Method {
 			case "stop":
 				resp := makeResponse(req.ID,
-					"btcwallet stopping.", nil)
+					"lbcwallet stopping.", nil)
 				mresp, err := json.Marshal(resp)
 				// Expected to never fail.
 				if err != nil {
@@ -593,7 +593,7 @@ func (s *Server) postClientRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	case "stop":
 		stop = true
-		res = "btcwallet stopping"
+		res = "lbcwallet stopping"
 	default:
 		res, jsonErr = s.handlerClosure(&req)()
 	}

@@ -15,14 +15,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btcsuite/btcd/btcec"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcutil"
-	"github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/btcsuite/btcwallet/snacl"
-	"github.com/btcsuite/btcwallet/walletdb"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/lbryio/lbcd/btcec"
+	"github.com/lbryio/lbcd/chaincfg"
+	"github.com/lbryio/lbcd/chaincfg/chainhash"
+	btcutil "github.com/lbryio/lbcutil"
+	"github.com/lbryio/lbcutil/hdkeychain"
+	"github.com/lbryio/lbcwallet/snacl"
+	"github.com/lbryio/lbcwallet/walletdb"
 	"github.com/stretchr/testify/require"
 )
 

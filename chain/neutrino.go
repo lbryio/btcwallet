@@ -1,7 +1,7 @@
 package chain
 
 import (
-	"github.com/btcsuite/btcd/txscript"
+	"github.com/lbryio/lbcd/txscript"
 )
 
 // buildFilterBlocksWatchList constructs a watchlist used for matching against a

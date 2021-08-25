@@ -1,17 +1,17 @@
 ============================================================================
-User visible changes for btcwallet
-  A wallet daemon for btcd, written in Go
+User visible changes for lbcwallet
+  A wallet daemon for lbcd, written in Go
 ============================================================================
 
 Changes in 0.7.0 (Mon Nov 23 2015)
   - New features:
-    - Wallet will now detect network inactivity and reconnect to the btcd
+    - Wallet will now detect network inactivity and reconnect to the lbcd
       RPC server if the connection was lost (#320)
 
   - Bug fixes:
     - Removed data races in the RPC server (#292) and waddrmgr package
       (#293)
-    - Corrected handling of btcutil.AddressPubKey addresses when querying
+    - Corrected handling of lbcutil.AddressPubKey addresses when querying
       for a ManagedAddress from the address manager (#313)
     - Fixed signmessage and verifymessage algorithm to match the equivalent
       algorithms used by Core (#324)
@@ -29,7 +29,7 @@ Changes in 0.7.0 (Mon Nov 23 2015)
 
   - Miscellaneous:
     - Updated websocket notification handlers to latest API required by
-      btcd (#294)
+      lbcd (#294)
     - Enabled the logging subsystem of the rpcclient package (#328)
 
   - Contributors (alphabetical order):
@@ -51,7 +51,7 @@ Changes in 0.6.0 (Wed May 27 2015)
       - RPC requests with an unspecified account that default to the unnamed
         account in Bitcoin Core Wallet default to "default", the name of the
         initial account
-      - Several RPCs with account parameters do not work with btcwallet
+      - Several RPCs with account parameters do not work with lbcwallet
         accounts due to concerns over expectations of API compatibility with
         Bitcoin Core Wallet.  A new RPC API is being planned to rectify this
         (#220).
@@ -62,13 +62,13 @@ Changes in 0.6.0 (Wed May 27 2015)
     - Add utility (cmd/dropwtxmgr) to drop transaction history and force a
       rescan (#234)
     - Implement the help RPC to return single line usages of all wallet and
-      btcd server requests as well as detailed usage for a single request
+      lbcd server requests as well as detailed usage for a single request
 
   - Bug fixes:
     - Handle chain reorgs by unconfirming transactions from removed blocks
       (#248)
     - Rollback all transaction history when none of the saved recently seen
-      block hashes are known to btcd (#234, #281)
+      block hashes are known to lbcd (#234, #281)
     - Prevent the situation where the default account was renamed but cannot
       be renamed back to "" or "default" by removing the special case naming
       policy for the default account (#253)
@@ -96,18 +96,18 @@ Changes in 0.6.0 (Wed May 27 2015)
       updates at a time under a single database transaction.
 
   - Notable developer-related changes:
-    - Relicense all code to the btcsuite developers (#258)
+    - Relicense all code to the lbcsuite developers (#258)
     - Replace txstore package with wtxmgr, the walletdb-based transaction
       store (#217, #234)
     - Add Cursor API to walletdb for forwards and backwards iteration over
       a bucket (included in #234)
     - Factor out much of main's wallet.go into a wallet package (#213,
       #276, #255)
-    - Convert RPC server and client to btcjson v2 API (#233, #227)
+    - Convert RPC server and client to lbcjson v2 API (#233, #227)
       - Help text and single line usages for the help RPC are pregenerated
         from descriptions in the internal/rpchelp package and saved as
         globals in main.  Help text must be regenerated (using `go generate`)
-        each time the btcjson struct tags change or the help definitions are
+        each time the lbcjson struct tags change or the help definitions are
         modified.
     - Add additional features to the votingpool package:
       - Implement StartWithdrawal API to begin an Open Transactions
@@ -195,7 +195,7 @@ Changes in 0.5.0 (Tue Mar 03 2015)
       - lockunspent, listlockunspent (#50, #55)
       - getreceivedbyaddress
       - listreceivedbyaccount
-    - Reimplement btcd RPCs which return the best block to use the block most
+    - Reimplement lbcd RPCs which return the best block to use the block most
       recently processed by wallet to avoid confirmation races:
       - getbestblockhash
       - getblockcount
@@ -203,14 +203,14 @@ Changes in 0.5.0 (Tue Mar 03 2015)
     - Throttle the number of connected HTTP POST and websocket client
       connections (tunable using the rpcmaxclients and rpcmaxwebsockets config
       options)
-    - Provide the ability to disable TLS when connecting to a localhost btcd or
+    - Provide the ability to disable TLS when connecting to a localhost lbcd or
       serving localhost clients
 
   - Rescan improvements:
     - Add a rescan notification for when the rescan has completed and no more
       rescan notifications are expected (#99)
     - Use the most recent partial sync height from a rescan progress
-      notification when a rescan is restarted after the btcd connection is lost
+      notification when a rescan is restarted after the lbcd connection is lost
     - Force a rescan if the transaction store cannot be opened (due to a
       missing file or if the deserialization failed)
 
@@ -231,7 +231,7 @@ Changes in 0.5.0 (Tue Mar 03 2015)
     - Mark unconfirmed transaction credits as spent when another unconfirmed
       transaction spends one (#91)
     - Exclude immature coinbase outputs from listunspent results (#103)
-    - Fix several data and logic races during sync with btcd (#101)
+    - Fix several data and logic races during sync with lbcd (#101)
     - Avoid a memory issue from incorrect slice usage which caused both
       duplicate and missing blocks in the transaction store when middle
       inserting transactions from a new block
@@ -239,9 +239,9 @@ Changes in 0.5.0 (Tue Mar 03 2015)
       transactions (#89)
     - Return the correct UTXO set when fetching all wallet UTXOs by fixing an
       incorrect slice append
-    - Remove a deadlock caused by filling the btcd notification channel (#100)
+    - Remove a deadlock caused by filling the lbcd notification channel (#100)
     - Avoid a confirmation race by using the most recently processed block in
-      RPC handlers, rather than using the most recently notified block by btcd
+      RPC handlers, rather than using the most recently notified block by lbcd
     - Marshal empty JSON arrays as `[]` instead of the JSON `null` by using
       empty, non-nil Go slices
     - Flush logs and run all deferred functions before main returns and the
@@ -253,13 +253,13 @@ Changes in 0.5.0 (Tue Mar 03 2015)
     - Switch from the go.net websocket package to gorilla websockets
     - Refactor the RPC server:
       - Move several global variables to the rpcServer struct
-      - Dynamically look up appropriate handlers for the current btcd connection
+      - Dynamically look up appropriate handlers for the current lbcd connection
         status and wallet sync state
       - Begin creating websocket notifications by sending to one of many
         notification channels in the rpcServer struct, which are in turn
         marshalled and broadcast to each websocket client
     - Separate the RPC client code into the chain package:
-      - Uses rpcclient for a btcd websocket RPC client
+      - Uses rpcclient for a lbcd websocket RPC client
       - Converts all notification callbacks to typed messages sent over channels
       - Uses an unbounded queue for waiting notifications
     - Import a new voting pool package (votingpool):
@@ -270,7 +270,7 @@ Changes in 0.5.0 (Tue Mar 03 2015)
     - Check and handle all errors in some way, or explicitly comment why a
       particular error was left unchecked
     - Simplify RPC error handling by wrapping specific errors in unique types to
-      create an appropriate btcjson error before the response is marshalled
+      create an appropriate lbcjson error before the response is marshalled
     - Add a map of unspent outputs (keyed by outpoint) to the transaction store
       for quick lookup of any UTXO and access to the full wallet UTXO set
       without iterating over many transactions looking for unspent credits
@@ -280,7 +280,7 @@ Changes in 0.5.0 (Tue Mar 03 2015)
   - Miscellaneous:
     - Rewrite paths relative to the data directory when an alternate data
       directory is provided on the command line
-    - Switch the websocket endpoint to `ws` to match btcd
+    - Switch the websocket endpoint to `ws` to match lbcd
     - Remove the getaddressbalance extension RPC to discourage address reuse and
       encourage watching for expected payments by using listunspent
     - Increase transaction creation performance by moving the sorting of
@@ -293,27 +293,27 @@ Changes in 0.5.0 (Tue Mar 03 2015)
       - [debug] Log each transaction that is removed in a rollback
     - Only log rollbacks if transactions are reorged out of the old chain
     - Save logs to network-specific directories
-      (e.g. ~/.btcwallet/logs/testnet3) to match btcd behavior (#114)
+      (e.g. ~/.lbcwallet/logs/testnet3) to match lbcd behavior (#114)
 
 Changes in 0.4.0 (Sun May 25 2014)
   - Implement the following standard bitcoin server RPC requests:
-    - signmessage (https://github.com/conformal/btcwallet/issues/58)
-    - verifymessage (https://github.com/conformal/btcwallet/issues/61)
-    - listunspent (https://github.com/conformal/btcwallet/issues/54)
-    - validateaddress (https://github.com/conformal/btcwallet/issues/60)
-    - addressmultisig (https://github.com/conformal/btcwallet/issues/37)
-    - createmultisig (https://github.com/conformal/btcwallet/issues/37)
-    - signrawtransaction (https://github.com/conformal/btcwallet/issues/59)
+    - signmessage (https://github.com/lbryio/lbcwallet/issues/58)
+    - verifymessage (https://github.com/lbryio/lbcwallet/issues/61)
+    - listunspent (https://github.com/lbryio/lbcwallet/issues/54)
+    - validateaddress (https://github.com/lbryio/lbcwallet/issues/60)
+    - addressmultisig (https://github.com/lbryio/lbcwallet/issues/37)
+    - createmultisig (https://github.com/lbryio/lbcwallet/issues/37)
+    - signrawtransaction (https://github.com/lbryio/lbcwallet/issues/59)
 
   - Add authenticate extension RPC request to authenticate a websocket
     session without requiring the use of the HTTP Authorization header
 
-  - Add btcdusername and btcdpassword options to allow separate
+  - Add lbcdusername and lbcdpassword options to allow separate
     authentication credentials from wallet clients when authenticating to a
-    btcd websocket RPC server
+    lbcd websocket RPC server
 
   - Fix RPC response passthrough: JSON unmarshaling and marshaling is now
-    delayed until necessary and JSON result objects from btcd are sent to
+    delayed until necessary and JSON result objects from lbcd are sent to
     clients directly without an extra decode+encode that may change the
     representation of large integer values
 
@@ -327,14 +327,14 @@ Changes in 0.4.0 (Sun May 25 2014)
     to a length of 32
 
   - Fix rescan for transaction history for imported addresses
-    (https://github.com/conformal/btcwallet/issues/74)
+    (https://github.com/lbryio/lbcwallet/issues/74)
 
   - Fix listsinceblock request handler to consider the minimum confirmation
-    parameter (https://github.com/conformal/btcwallet/issues/80)
+    parameter (https://github.com/lbryio/lbcwallet/issues/80)
 
   - Fix several RPC handlers which require an unlocked wallet to check
     for an unlocked wallet before continuing
-    (https://github.com/conformal/btcwallet/issues/65)
+    (https://github.com/lbryio/lbcwallet/issues/65)
 
   - Fix handling for block rewards (coinbase transactions):
     - Update listtransactions results to use "generate" category for
@@ -354,17 +354,17 @@ Changes in 0.4.0 (Sun May 25 2014)
     - Merge waiting rescan jobs so all jobs can be handled with a single
       rescan
     - Support parially synced addresses in the keystore and incrementally
-      mark rescan progress.  If a rescan is unable to continue (wallet 
-      closes, btcd disconnects, etc.) a new rescan can start at the last
+      mark rescan progress.  If a rescan is unable to continue (wallet
+      closes, lbcd disconnects, etc.) a new rescan can start at the last
       synced chain height
 
-  - Notify (with an unsolicited notification) websocket clients of btcd
+  - Notify (with an unsolicited notification) websocket clients of lbcd
     connection state
 
   - Improve logging:
     - Log reason for disconnecting a websocket client
 
-  - Updates for btcd websocket API changes
+  - Updates for lbcd websocket API changes
 
   - Stability fixes, internal API changes, general code cleanup, and comment
     corrections
@@ -372,13 +372,13 @@ Changes in 0.4.0 (Sun May 25 2014)
 Changes in 0.3.0 (Mon Feb 10 2014)
   - Use correct hash algorithm for chained addresses (fixes a bug where
     address chaining was still deterministic, but forked from Armory and
-    previous btcwallet implementations)
+    previous lbcwallet implementations)
 
-  - Change websocket endpoint to connect to btcd 0.6.0-alpha
+  - Change websocket endpoint to connect to lbcd 0.6.0-alpha
 
   - Redo server implementation to serialize handling of client requests
 
-  - Redo account locking to greatly reduce btcwallet lockups caused by
+  - Redo account locking to greatly reduce lbcwallet lockups caused by
     incorrect mutex usage
 
   - Open all accounts, rather than just the default account, at startup
@@ -392,23 +392,23 @@ Changes in 0.3.0 (Mon Feb 10 2014)
     the minimum fee to all outbound transactions
 
   - Implement the following standard bitcoin server RPC requests:
-    - getinfo (https://github.com/conformal/btcwallet/issues/63)
-    - getrawchangeaddress (https://github.com/conformal/btcwallet/issues/41)
-    - getreceivedbyaccount (https://github.com/conformal/btcwallet/issues/42)
-    - gettransaction (https://github.com/conformal/btcwallet/issues/44)
-    - keypoolrefill (https://github.com/conformal/btcwallet/issues/48)
-    - listsinceblock (https://github.com/conformal/btcwallet/issues/52)
-    - sendtoaddress (https://github.com/conformal/btcwallet/issues/56)
+    - getinfo (https://github.com/lbryio/lbcwallet/issues/63)
+    - getrawchangeaddress (https://github.com/lbryio/lbcwallet/issues/41)
+    - getreceivedbyaccount (https://github.com/lbryio/lbcwallet/issues/42)
+    - gettransaction (https://github.com/lbryio/lbcwallet/issues/44)
+    - keypoolrefill (https://github.com/lbryio/lbcwallet/issues/48)
+    - listsinceblock (https://github.com/lbryio/lbcwallet/issues/52)
+    - sendtoaddress (https://github.com/lbryio/lbcwallet/issues/56)
 
   - Add empty (unimplemented) handlers for the following RPC requests so
-    requests are not passed down to btcd:
+    requests are not passed down to lbcd:
     - getblocktemplate
     - getwork
     - stop
 
   - Add RPC extension request, exportwatchingwallet, to export an account
     with a watching-only wallet from an account with a hot wallet that
-    may be used by a separate btcwallet instance
+    may be used by a separate lbcwallet instance
 
   - Require all account wallets to share the same passphrase
 
@@ -418,16 +418,16 @@ Changes in 0.3.0 (Mon Feb 10 2014)
   - Allow opening accounts with watching-only wallets
 
   - Return txid for sendfrom RPC requests
-    (https://github.com/conformal/btcwallet/issues/64)
+    (https://github.com/lbryio/lbcwallet/issues/64)
 
   - Rescan imported private keys in background
-    (https://github.com/conformal/btcwallet/issues/34)
+    (https://github.com/lbryio/lbcwallet/issues/34)
 
   - Do not import duplicate private keys
-    (https://github.com/conformal/btcwallet/issues/35)
+    (https://github.com/lbryio/lbcwallet/issues/35)
 
   - Write all three account files for a new account, rather than just
-    the wallet (https://github.com/conformal/btcwallet/issues/30)
+    the wallet (https://github.com/lbryio/lbcwallet/issues/30)
 
   - Create any missing directories before writing autogenerated certificate
     pair
@@ -446,19 +446,19 @@ Changes in 0.3.0 (Mon Feb 10 2014)
   - Fix typos in README file
 
 Changes in 0.2.1 (Thu Jan 10 2014)
-  - Fix a mutex issue which caused btcwallet to lockup on all
+  - Fix a mutex issue which caused lbcwallet to lockup on all
     RPC requests needing to read or write an account
 
 Changes in 0.2.0 (Thu Jan 09 2014)
   - Enable mainnet support (disabled by default, use --mainnet to enable)
 
-  - Don't hardcode localhost btcd connections.  Instead, add a --connect
+  - Don't hardcode localhost lbcd connections.  Instead, add a --connect
     option to specify the hostname or address and port of a local or
-    remote btcd instance
-    (https://github.com/conformal/btcwallet/issues/1)
+    remote lbcd instance
+    (https://github.com/lbryio/lbcwallet/issues/1)
 
   - Remove --serverport port and replace with --listen.  This option works
-    just like btcd's --rpclisten  and allows to specify the interfaces to
+    just like lbcd's --rpclisten  and allows to specify the interfaces to
     listen for RPC connections
 
   - Require TLS and Basic HTTP authentication before wallet can be
@@ -466,28 +466,28 @@ Changes in 0.2.0 (Thu Jan 09 2014)
 
   - Refill keypool if wallet is unlocked and keypool is emptied
 
-  - Detect and rollback saved tx/utxo info after btcd performs blockchain
-    reorganizations while btcwallet was disconnected
+  - Detect and rollback saved tx/utxo info after lbcd performs blockchain
+    reorganizations while lbcwallet was disconnected
 
   - Add support for the following standard bitcoin JSON-RPC calls:
-    - dumpprivkey (https://github.com/conformal/btcwallet/issues/9)
+    - dumpprivkey (https://github.com/lbryio/lbcwallet/issues/9)
     - getaccount
     - getaccountaddress
-    - importprivkey (https://github.com/conformal/btcwallet/issues/2)
-    - listtransactions (https://github.com/conformal/btcwallet/issues/12)
+    - importprivkey (https://github.com/lbryio/lbcwallet/issues/2)
+    - listtransactions (https://github.com/lbryio/lbcwallet/issues/12)
 
   - Add several extension RPC calls for websocket connections:
     - getaddressbalance: get the balance associated with a single address
     - getunconfirmedbalance: get total balance for unconfirmed transactions
     - listaddresstransactions: list transactions for a single address
-      (https://github.com/conformal/btcwallet/issues/27)
+      (https://github.com/lbryio/lbcwallet/issues/27)
     - listalltransactions: lists all transactions without specifying a range
 
   - Make RPC extensions available only to websocket connections, with the
     exception of createencryptedwallet
 
   - Add dummy handlers for unimplemented wallet RPC calls
-    (https://github.com/conformal/btcwallet/issues/29)
+    (https://github.com/lbryio/lbcwallet/issues/29)
 
   - Add socks5/tor proxy support
 
@@ -495,22 +495,22 @@ Changes in 0.2.0 (Thu Jan 09 2014)
 
   - Use OS-specific rename calls to provide atomic file renames which
     can replace a currently-existing file
-    (https://github.com/conformal/btcwallet/issues/20)
+    (https://github.com/lbryio/lbcwallet/issues/20)
 
   - Move account files to a single directory per bitcoin network to
     prevent a future scaling issue
-    (https://github.com/conformal/btcwallet/issues/16)
+    (https://github.com/lbryio/lbcwallet/issues/16)
 
   - Fix several data races and mutex mishandling
 
-  - Fix a bug where the RPC server hung on requests requiring btcd
-    when a btcd connection was never established
+  - Fix a bug where the RPC server hung on requests requiring lbcd
+    when a lbcd connection was never established
 
   - Fix a bug where creating account files did not create all necessary
-    directories (https://github.com/conformal/btcwallet/issues/15)
+    directories (https://github.com/lbryio/lbcwallet/issues/15)
 
   - Fix a bug where '~' did not expand to a home or user directory
-    (https://github.com/conformal/btcwallet/issues/17)
+    (https://github.com/lbryio/lbcwallet/issues/17)
 
   - Fix a bug where returning account names as strings did not remove
     trailing ending 0s

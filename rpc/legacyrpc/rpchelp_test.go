@@ -18,8 +18,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/btcsuite/btcd/btcjson"
-	"github.com/btcsuite/btcwallet/internal/rpchelp"
+	"github.com/lbryio/lbcd/btcjson"
+	"github.com/lbryio/lbcwallet/internal/rpchelp"
 )
 
 func serverMethods() map[string]struct{} {

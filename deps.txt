@@ -1,10 +1,10 @@
 Dependency Commits
 ==================
 
-btcwallet 0.7.0 Alpha
+lbcwallet 0.7.0 Alpha
 ----------------
 bolt            1139dd23c5f9d1a28096b511959044b29364a3fe
-btcd            cea5d3c1cc16eb07a1686c557db23004655ae11b
+            cea5d3c1cc16eb07a1686c557db23004655ae11b
 btclog          5005b7240f310ae8f01c7664a3954d280241eb2b
 btcrpcclient    b81555beeac8eda71e8150cc9d63631aaa756965
 btcutil         ff82dacded1c76d101bce55c394c03c0bbff69e8
@@ -15,9 +15,9 @@ golangcrypto    53f62d9b43e87a6c56975cf862af7edf33a8d0df
 seelog          313961b101eb55f65ae0f03ddd4e322731763b6c
 websocket       31079b6807923eb23992c421b114992b95131b55
 
-btcwallet 0.1.0 Alpha
+lbcwallet 0.1.0 Alpha
 ----------------
-btcd		3108b944017b14a3c5863ed1401f1a2471907d84
+		3108b944017b14a3c5863ed1401f1a2471907d84
 btcec		a97fd5fe2c670030f8d77dc13b9fa8401ef9f349
 btcjson		d20f958c92e1444d83215c3cf98d6eef41898dcb
 btcscript	f4a6449ad3b90d0c830bf2895b83ced8d5fb91e9

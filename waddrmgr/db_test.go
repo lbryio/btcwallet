@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcwallet/walletdb"
+	"github.com/lbryio/lbcd/chaincfg/chainhash"
+	"github.com/lbryio/lbcwallet/walletdb"
 )
 
 // TestStoreMaxReorgDepth ensures that we can only store up to MaxReorgDepth

@@ -15,23 +15,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/btcsuite/btcd/blockchain"
-	"github.com/btcsuite/btcd/btcec"
-	"github.com/btcsuite/btcd/btcjson"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
-	"github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/btcsuite/btcwallet/chain"
-	"github.com/btcsuite/btcwallet/waddrmgr"
-	"github.com/btcsuite/btcwallet/wallet/txauthor"
-	"github.com/btcsuite/btcwallet/wallet/txrules"
-	"github.com/btcsuite/btcwallet/walletdb"
-	"github.com/btcsuite/btcwallet/walletdb/migration"
-	"github.com/btcsuite/btcwallet/wtxmgr"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/lbryio/lbcd/blockchain"
+	"github.com/lbryio/lbcd/btcec"
+	"github.com/lbryio/lbcd/btcjson"
+	"github.com/lbryio/lbcd/chaincfg"
+	"github.com/lbryio/lbcd/chaincfg/chainhash"
+	"github.com/lbryio/lbcd/txscript"
+	"github.com/lbryio/lbcd/wire"
+	btcutil "github.com/lbryio/lbcutil"
+	"github.com/lbryio/lbcutil/hdkeychain"
+	"github.com/lbryio/lbcwallet/chain"
+	"github.com/lbryio/lbcwallet/waddrmgr"
+	"github.com/lbryio/lbcwallet/wallet/txauthor"
+	"github.com/lbryio/lbcwallet/wallet/txrules"
+	"github.com/lbryio/lbcwallet/walletdb"
+	"github.com/lbryio/lbcwallet/walletdb/migration"
+	"github.com/lbryio/lbcwallet/wtxmgr"
 )
 
 const (
@@ -1531,7 +1531,7 @@ func (w *Wallet) CalculateAccountBalances(account uint32, confirms int32) (Balan
 // CurrentAddress gets the most recently requested Bitcoin payment address
 // from a wallet for a particular key-chain scope.  If the address has already
 // been used (there is at least one transaction spending to it in the
-// blockchain or btcd mempool), the next chained address is returned.
+// blockchain or lbcd mempool), the next chained address is returned.
 func (w *Wallet) CurrentAddress(account uint32, scope waddrmgr.KeyScope) (btcutil.Address, error) {
 	chainClient, err := w.requireChainClient()
 	if err != nil {
@@ -3492,8 +3492,8 @@ func (w *Wallet) publishTransaction(tx *wire.MsgTx) (*chainhash.Hash, error) {
 	// If the transaction is already in the mempool, we can just return now.
 	//
 	// This error is returned when broadcasting/sending a transaction to a
-	// btcd node that already has it in their mempool.
-	// https://github.com/btcsuite/btcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L953
+	// lbcd node that already has it in their mempool.
+	// https://github.com/lbryio/lbcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L953
 	case match(err, "already have transaction"):
 		fallthrough
 
@@ -3509,15 +3509,15 @@ func (w *Wallet) publishTransaction(tx *wire.MsgTx) (*chainhash.Hash, error) {
 	// in a sense successful.
 	//
 	// This error is returned when sending a transaction that has already
-	// confirmed to a btcd/bitcoind node over RPC.
-	// https://github.com/btcsuite/btcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/rpcserver.go#L3355
+	// confirmed to a lbcd/bitcoind node over RPC.
+	// https://github.com/lbryio/lbcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/rpcserver.go#L3355
 	// https://github.com/bitcoin/bitcoin/blob/9bf5768dd628b3a7c30dd42b5ed477a92c4d3540/src/node/transaction.cpp#L36
 	case rpcTxConfirmed:
 		fallthrough
 
 	// This error is returned when broadcasting a transaction that has
-	// already confirmed to a btcd node over the P2P network.
-	// https://github.com/btcsuite/btcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L1036
+	// already confirmed to a lbcd node over the P2P network.
+	// https://github.com/lbryio/lbcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L1036
 	case match(err, "transaction already exists"):
 		fallthrough
 
@@ -3544,23 +3544,23 @@ func (w *Wallet) publishTransaction(tx *wire.MsgTx) (*chainhash.Hash, error) {
 	// transaction already in the mempool or in the chain, we'll remove it
 	// from the store and return an error.
 	//
-	// This error is returned from btcd when there is already a transaction
+	// This error is returned from lbcd when there is already a transaction
 	// not signaling replacement in the mempool that spends one of the
 	// referenced outputs.
-	// https://github.com/btcsuite/btcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L591
+	// https://github.com/lbryio/lbcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L591
 	case match(err, "already spent"):
 		fallthrough
 
-	// This error is returned from btcd when a referenced output cannot be
+	// This error is returned from lbcd when a referenced output cannot be
 	// found, meaning it etiher has been spent or doesn't exist.
-	// https://github.com/btcsuite/btcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/blockchain/chain.go#L405
+	// https://github.com/lbryio/lbcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/blockchain/chain.go#L405
 	case match(err, "already been spent"):
 		fallthrough
 
-	// This error is returned from btcd when a transaction is spending
+	// This error is returned from lbcd when a transaction is spending
 	// either output that is missing or already spent, and orphans aren't
 	// allowed.
-	// https://github.com/btcsuite/btcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L1409
+	// https://github.com/lbryio/lbcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L1409
 	case match(err, "orphan transaction"):
 		fallthrough
 
@@ -3608,13 +3608,13 @@ func (w *Wallet) publishTransaction(tx *wire.MsgTx) (*chainhash.Hash, error) {
 	case match(err, "replacement-adds-unconfirmed"):
 		fallthrough
 
-	// Returned by btcd when replacement transaction was rejected for
+	// Returned by lbcd when replacement transaction was rejected for
 	// whatever reason.
-	// https://github.com/btcsuite/btcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L841
-	// https://github.com/btcsuite/btcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L854
-	// https://github.com/btcsuite/btcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L875
-	// https://github.com/btcsuite/btcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L896
-	// https://github.com/btcsuite/btcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L913
+	// https://github.com/lbryio/lbcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L841
+	// https://github.com/lbryio/lbcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L854
+	// https://github.com/lbryio/lbcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L875
+	// https://github.com/lbryio/lbcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L896
+	// https://github.com/lbryio/lbcd/blob/130ea5bddde33df32b06a1cdb42a6316eb73cff5/mempool/mempool.go#L913
 	case match(err, "replacement transaction"):
 		returnErr = &ErrReplacement{
 			backendError: err,
@@ -3655,7 +3655,7 @@ func (w *Wallet) ChainParams() *chaincfg.Params {
 }
 
 // Database returns the underlying walletdb database. This method is provided
-// in order to allow applications wrapping btcwallet to store app-specific data
+// in order to allow applications wrapping lbcwallet to store app-specific data
 // with the wallet's database.
 func (w *Wallet) Database() walletdb.DB {
 	return w.db

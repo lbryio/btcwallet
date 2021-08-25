@@ -24,13 +24,13 @@ import (
 
 	"golang.org/x/crypto/ripemd160"
 
-	"github.com/btcsuite/btcd/btcec"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
-	"github.com/btcsuite/btcwallet/internal/legacy/rename"
+	"github.com/lbryio/lbcd/btcec"
+	"github.com/lbryio/lbcd/chaincfg"
+	"github.com/lbryio/lbcd/chaincfg/chainhash"
+	"github.com/lbryio/lbcd/txscript"
+	"github.com/lbryio/lbcd/wire"
+	btcutil "github.com/lbryio/lbcutil"
+	"github.com/lbryio/lbcwallet/internal/legacy/rename"
 )
 
 const (
@@ -1731,7 +1731,7 @@ func (af *addrFlags) ReadFrom(r io.Reader) (int64, error) {
 	af.partialSync = b[0]&(1<<7) != 0
 
 	// Currently (at least until watching-only key stores are implemented)
-	// btcwallet shall refuse to open any unencrypted addresses.  This
+	// lbcwallet shall refuse to open any unencrypted addresses.  This
 	// check only makes sense if there is a private key to encrypt, which
 	// there may not be if the keypool was extended from just the last
 	// public key and no private keys were written.
@@ -1971,7 +1971,7 @@ func (it *BlockIterator) BlockStamp() BlockStamp {
 }
 
 // unusedSpace is a wrapper type to read or write one or more types
-// that btcwallet fits into an unused space left by Armory's key store file
+// that lbcwallet fits into an unused space left by Armory's key store file
 // format.
 type unusedSpace struct {
 	nBytes int // number of unused bytes that armory left.

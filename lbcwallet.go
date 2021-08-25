@@ -13,9 +13,9 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/btcsuite/btcwallet/chain"
-	"github.com/btcsuite/btcwallet/rpc/legacyrpc"
-	"github.com/btcsuite/btcwallet/wallet"
+	"github.com/lbryio/lbcwallet/chain"
+	"github.com/lbryio/lbcwallet/rpc/legacyrpc"
+	"github.com/lbryio/lbcwallet/wallet"
 )
 
 var (
@@ -225,14 +225,14 @@ func readCAFile() []byte {
 	return certs
 }
 
-// startChainRPC opens a RPC client connection to a btcd server for blockchain
+// startChainRPC opens a RPC client connection to a  server for blockchain
 // services.  This function uses the RPC options from the global config and
 // there is no recovery in case the server is not available or if there is an
 // authentication error.  Instead, all requests to the client will simply error.
 func startChainRPC(certs []byte) (*chain.RPCClient, error) {
 	log.Infof("Attempting RPC client connection to %v", cfg.RPCConnect)
 	rpcc, err := chain.NewRPCClient(activeNet.Params, cfg.RPCConnect,
-		cfg.BtcdUsername, cfg.BtcdPassword, certs, cfg.DisableClientTLS, 0)
+		cfg.LbcdUsername, cfg.LbcdPassword, certs, cfg.DisableClientTLS, 0)
 	if err != nil {
 		return nil, err
 	}

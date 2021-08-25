@@ -13,8 +13,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/btcsuite/btcd/btcjson"
-	"github.com/btcsuite/btcwallet/internal/rpchelp"
+	"github.com/lbryio/lbcd/btcjson"
+	"github.com/lbryio/lbcwallet/internal/rpchelp"
 )
 
 var outputFile = func() *os.File {

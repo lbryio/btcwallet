@@ -11,17 +11,17 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/btcsuite/btcutil"
-	"github.com/btcsuite/btcwallet/wallet"
-	"github.com/btcsuite/btcwallet/walletdb"
-	_ "github.com/btcsuite/btcwallet/walletdb/bdb"
 	"github.com/jessevdk/go-flags"
+	btcutil "github.com/lbryio/lbcutil"
+	"github.com/lbryio/lbcwallet/wallet"
+	"github.com/lbryio/lbcwallet/walletdb"
+	_ "github.com/lbryio/lbcwallet/walletdb/bdb"
 )
 
 const defaultNet = "mainnet"
 
 var (
-	datadir = btcutil.AppDataDir("btcwallet", false)
+	datadir = btcutil.AppDataDir("lbcwallet", false)
 )
 
 // Flags.
@@ -74,7 +74,7 @@ func mainInt() int {
 	}
 
 	for !opts.Force {
-		fmt.Print("Drop all btcwallet transaction history? [y/N] ")
+		fmt.Print("Drop all lbcwallet transaction history? [y/N] ")
 
 		scanner := bufio.NewScanner(bufio.NewReader(os.Stdin))
 		if !scanner.Scan() {
@@ -105,7 +105,7 @@ func mainInt() int {
 	}
 	defer db.Close()
 
-	fmt.Println("Dropping btcwallet transaction history")
+	fmt.Println("Dropping lbcwallet transaction history")
 
 	err = wallet.DropTransactionHistory(db, !opts.DropLabels)
 	if err != nil {

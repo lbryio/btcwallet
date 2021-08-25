@@ -132,7 +132,7 @@ After creating a wallet, the `WalletService` service begins running.
   encryption.  This passphrase protects data that is made public on the
   blockchain.  If this passphrase has zero length, an insecure default is used
   instead.
-  
+
 - `bytes private_passphrase`: The passphrase used for the inner wallet
   encryption.  This is the passphrase used for data that must always remain
   private, such as private keys.  The length of this field must not be zero.
@@ -212,14 +212,14 @@ ___
 #### `StartConsensusRpc`
 
 The `StartConsensusRpc` method is used to provide clients the ability to dynamically
-start the btcd RPC client.  This RPC client is used for wallet syncing and
+start the  RPC client.  This RPC client is used for wallet syncing and
 publishing transactions to the Bitcoin network.
 
 **Request:** `StartConsensusRpcRequest`
 
 - `string network_address`: The host/IP and optional port of the RPC server to
   connect to.  IP addresses may be IPv4 or IPv6.  If the port is missing, a
-  default port is chosen corresponding to the default btcd RPC port of the
+  default port is chosen corresponding to the default  RPC port of the
   active Bitcoin network.
 
 - `string username`: The RPC username required to authenticate to the RPC
@@ -259,23 +259,39 @@ or opened yet.
 
 The service provides the following methods:
 
-- [`Ping`](#ping)
-- [`Network`](#network)
-- [`AccountNumber`](#accountnumber)
-- [`Accounts`](#accounts)
-- [`Balance`](#balance)
-- [`GetTransactions`](#gettransactions)
-- [`ChangePassphrase`](#changepassphrase)
-- [`RenameAccount`](#renameaccount)
-- [`NextAccount`](#nextaccount)
-- [`NextAddress`](#nextaddress)
-- [`ImportPrivateKey`](#importprivatekey)
-- [`FundTransaction`](#fundtransaction)
-- [`SignTransaction`](#signtransaction)
-- [`PublishTransaction`](#publishtransaction)
-- [`TransactionNotifications`](#transactionnotifications)
-- [`SpentnessNotifications`](#spentnessnotifications)
-- [`AccountNotifications`](#accountnotifications)
+- [RPC API Specification](#rpc-api-specification)
+- [Version: 2.0.1](#version-201)
+  - [`VersionService`](#versionservice)
+    - [Methods](#methods)
+      - [`Version`](#version)
+  - [`LoaderService`](#loaderservice)
+    - [Methods](#methods-1)
+      - [`WalletExists`](#walletexists)
+      - [`CreateWallet`](#createwallet)
+      - [`OpenWallet`](#openwallet)
+      - [`CloseWallet`](#closewallet)
+      - [`StartConsensusRpc`](#startconsensusrpc)
+  - [`WalletService`](#walletservice)
+      - [`Ping`](#ping)
+      - [`Network`](#network)
+      - [`AccountNumber`](#accountnumber)
+      - [`Accounts`](#accounts)
+      - [`Balance`](#balance)
+      - [`GetTransactions`](#gettransactions)
+      - [`ChangePassphrase`](#changepassphrase)
+      - [`RenameAccount`](#renameaccount)
+      - [`NextAccount`](#nextaccount)
+      - [`NextAddress`](#nextaddress)
+      - [`ImportPrivateKey`](#importprivatekey)
+      - [`FundTransaction`](#fundtransaction)
+      - [`SignTransaction`](#signtransaction)
+      - [`PublishTransaction`](#publishtransaction)
+      - [`TransactionNotifications`](#transactionnotifications)
+      - [`SpentnessNotifications`](#spentnessnotifications)
+      - [`AccountNotifications`](#accountnotifications)
+    - [Shared messages](#shared-messages)
+      - [`BlockDetails`](#blockdetails)
+      - [`TransactionDetails`](#transactiondetails)
 
 #### `Ping`
 
@@ -346,20 +362,20 @@ the wallet.
   message types, one per account, ordered by increasing account numbers.
 
   **Nested message:** `Account`
-  
+
   - `uint32 account_number`: The BIP0044 account number.
-  
+
   - `string account_name`: The name of the account.
-  
+
   - `int64 total_balance`: The total (zero-conf and immature) balance, counted
     in Satoshis.
-  
+
   - `uint32 external_key_count`: The number of derived keys in the external
      key chain.
-     
+
   - `uint32 internal_key_count`: The number of derived keys in the internal
      key chain.
-     
+
   - `uint32 imported_key_count`: The number of imported keys.
 
 - `bytes current_block_hash`: The hash of the block wallet is considered to

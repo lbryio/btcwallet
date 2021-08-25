@@ -7,10 +7,10 @@ package wallet
 import (
 	"fmt"
 
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcwallet/waddrmgr"
-	"github.com/btcsuite/btcwallet/walletdb"
-	"github.com/btcsuite/btcwallet/wtxmgr"
+	"github.com/lbryio/lbcd/chaincfg/chainhash"
+	"github.com/lbryio/lbcwallet/waddrmgr"
+	"github.com/lbryio/lbcwallet/walletdb"
+	"github.com/lbryio/lbcwallet/wtxmgr"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 // a full chain rescan of all wallet transaction and UTXO data. User-defined
 // transaction labels can optionally be kept by setting keepLabels to true.
 func DropTransactionHistory(db walletdb.DB, keepLabels bool) error {
-	log.Infof("Dropping btcwallet transaction history")
+	log.Infof("Dropping lbcwallet transaction history")
 
 	err := walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
 		// If we want to keep our tx labels, we read them out so we
