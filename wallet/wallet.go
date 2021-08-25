@@ -193,14 +193,6 @@ func (w *Wallet) SynchronizeRPC(chainClient chain.Interface) {
 	}
 	w.chainClient = chainClient
 
-	// If the chain client is a NeutrinoClient instance, set a birthday so
-	// we don't download all the filters as we go.
-	switch cc := chainClient.(type) {
-	case *chain.NeutrinoClient:
-		cc.SetStartTime(w.Manager.Birthday())
-	case *chain.BitcoindClient:
-		cc.SetBirthday(w.Manager.Birthday())
-	}
 	w.chainClientLock.Unlock()
 
 	// TODO: It would be preferable to either run these goroutines
@@ -364,21 +356,12 @@ func (w *Wallet) syncWithChain(birthdayStamp *waddrmgr.BlockStamp) error {
 		return err
 	}
 
-	// Neutrino relies on the information given to it by the cfheader server
-	// so it knows exactly whether it's synced up to the server's state or
-	// not, even on dev chains. To recover a Neutrino wallet, we need to
-	// make sure it's synced before we start scanning for addresses,
-	// otherwise we might miss some if we only scan up to its current sync
-	// point.
-	neutrinoRecovery := chainClient.BackEnd() == "neutrino" &&
-		w.recoveryWindow > 0
-
 	// We'll wait until the backend is synced to ensure we get the latest
 	// MaxReorgDepth blocks to store. We don't do this for development
 	// environments as we can't guarantee a lively chain, except for
 	// Neutrino, where the cfheader server tells us what it believes the
 	// chain tip is.
-	if !w.isDevEnv() || neutrinoRecovery {
+	if !w.isDevEnv() {
 		log.Debug("Waiting for chain backend to sync to tip")
 		if err := w.waitUntilBackendSynced(chainClient); err != nil {
 			return err
@@ -2285,18 +2268,6 @@ func (w *Wallet) GetTransactions(startBlock, endBlock *BlockIdentifier,
 					return nil, err
 				}
 				start = startHeader.Height
-			case *chain.BitcoindClient:
-				var err error
-				start, err = client.GetBlockHeight(startBlock.hash)
-				if err != nil {
-					return nil, err
-				}
-			case *chain.NeutrinoClient:
-				var err error
-				start, err = client.GetBlockHeight(startBlock.hash)
-				if err != nil {
-					return nil, err
-				}
 			}
 		}
 	}
@@ -2316,18 +2287,6 @@ func (w *Wallet) GetTransactions(startBlock, endBlock *BlockIdentifier,
 					return nil, err
 				}
 				end = endHeader.Height
-			case *chain.BitcoindClient:
-				var err error
-				start, err = client.GetBlockHeight(endBlock.hash)
-				if err != nil {
-					return nil, err
-				}
-			case *chain.NeutrinoClient:
-				var err error
-				end, err = client.GetBlockHeight(endBlock.hash)
-				if err != nil {
-					return nil, err
-				}
 			}
 		}
 	}

@@ -23,7 +23,6 @@ import (
 	"github.com/btcsuite/btcwallet/netparams"
 	"github.com/btcsuite/btcwallet/wallet"
 	flags "github.com/jessevdk/go-flags"
-	"github.com/lightninglabs/neutrino"
 )
 
 const (
@@ -274,9 +273,6 @@ func loadConfig() (*config, []string, error) {
 		UseSPV:                 false,
 		AddPeers:               []string{},
 		ConnectPeers:           []string{},
-		MaxPeers:               neutrino.MaxPeers,
-		BanDuration:            neutrino.BanDuration,
-		BanThreshold:           neutrino.BanThreshold,
 		DBTimeout:              wallet.DefaultDBTimeout,
 	}
 
@@ -545,61 +541,55 @@ func loadConfig() (*config, []string, error) {
 		"::1":       {},
 	}
 
-	if cfg.UseSPV {
-		neutrino.MaxPeers = cfg.MaxPeers
-		neutrino.BanDuration = cfg.BanDuration
-		neutrino.BanThreshold = cfg.BanThreshold
+	if cfg.RPCConnect == "" {
+		cfg.RPCConnect = net.JoinHostPort("localhost", activeNet.RPCClientPort)
+	}
+
+	// Add default port to connect flag if missing.
+	cfg.RPCConnect, err = cfgutil.NormalizeAddress(cfg.RPCConnect,
+		activeNet.RPCClientPort)
+	if err != nil {
+		fmt.Fprintf(os.Stderr,
+			"Invalid rpcconnect network address: %v\n", err)
+		return nil, nil, err
+	}
+
+	RPCHost, _, err := net.SplitHostPort(cfg.RPCConnect)
+	if err != nil {
+		return nil, nil, err
+	}
+	if cfg.DisableClientTLS {
+		if _, ok := localhostListeners[RPCHost]; !ok {
+			str := "%s: the --noclienttls option may not be used " +
+				"when connecting RPC to non localhost " +
+				"addresses: %s"
+			err := fmt.Errorf(str, funcName, cfg.RPCConnect)
+			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(os.Stderr, usageMessage)
+			return nil, nil, err
+		}
 	} else {
-		if cfg.RPCConnect == "" {
-			cfg.RPCConnect = net.JoinHostPort("localhost", activeNet.RPCClientPort)
-		}
+		// If CAFile is unset, choose either the copy or local btcd cert.
+		if !cfg.CAFile.ExplicitlySet() {
+			cfg.CAFile.Value = filepath.Join(cfg.AppDataDir.Value, defaultCAFilename)
 
-		// Add default port to connect flag if missing.
-		cfg.RPCConnect, err = cfgutil.NormalizeAddress(cfg.RPCConnect,
-			activeNet.RPCClientPort)
-		if err != nil {
-			fmt.Fprintf(os.Stderr,
-				"Invalid rpcconnect network address: %v\n", err)
-			return nil, nil, err
-		}
-
-		RPCHost, _, err := net.SplitHostPort(cfg.RPCConnect)
-		if err != nil {
-			return nil, nil, err
-		}
-		if cfg.DisableClientTLS {
-			if _, ok := localhostListeners[RPCHost]; !ok {
-				str := "%s: the --noclienttls option may not be used " +
-					"when connecting RPC to non localhost " +
-					"addresses: %s"
-				err := fmt.Errorf(str, funcName, cfg.RPCConnect)
+			// If the CA copy does not exist, check if we're connecting to
+			// a local btcd and switch to its RPC cert if it exists.
+			certExists, err := cfgutil.FileExists(cfg.CAFile.Value)
+			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
-				fmt.Fprintln(os.Stderr, usageMessage)
 				return nil, nil, err
 			}
-		} else {
-			// If CAFile is unset, choose either the copy or local btcd cert.
-			if !cfg.CAFile.ExplicitlySet() {
-				cfg.CAFile.Value = filepath.Join(cfg.AppDataDir.Value, defaultCAFilename)
-
-				// If the CA copy does not exist, check if we're connecting to
-				// a local btcd and switch to its RPC cert if it exists.
-				certExists, err := cfgutil.FileExists(cfg.CAFile.Value)
-				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
-					return nil, nil, err
-				}
-				if !certExists {
-					if _, ok := localhostListeners[RPCHost]; ok {
-						btcdCertExists, err := cfgutil.FileExists(
-							btcdDefaultCAFile)
-						if err != nil {
-							fmt.Fprintln(os.Stderr, err)
-							return nil, nil, err
-						}
-						if btcdCertExists {
-							cfg.CAFile.Value = btcdDefaultCAFile
-						}
+			if !certExists {
+				if _, ok := localhostListeners[RPCHost]; ok {
+					btcdCertExists, err := cfgutil.FileExists(
+						btcdDefaultCAFile)
+					if err != nil {
+						fmt.Fprintln(os.Stderr, err)
+						return nil, nil, err
+					}
+					if btcdCertExists {
+						cfg.CAFile.Value = btcdDefaultCAFile
 					}
 				}
 			}

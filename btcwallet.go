@@ -10,15 +10,12 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sync"
 
 	"github.com/btcsuite/btcwallet/chain"
 	"github.com/btcsuite/btcwallet/rpc/legacyrpc"
 	"github.com/btcsuite/btcwallet/wallet"
-	"github.com/btcsuite/btcwallet/walletdb"
-	"github.com/lightninglabs/neutrino"
 )
 
 var (
@@ -156,44 +153,10 @@ func rpcClientConnectLoop(legacyRPCServer *legacyrpc.Server, loader *wallet.Load
 			err         error
 		)
 
-		if cfg.UseSPV {
-			var (
-				chainService *neutrino.ChainService
-				spvdb        walletdb.DB
-			)
-			netDir := networkDir(cfg.AppDataDir.Value, activeNet.Params)
-			spvdb, err = walletdb.Create(
-				"bdb", filepath.Join(netDir, "neutrino.db"),
-				true, cfg.DBTimeout,
-			)
-			if err != nil {
-				log.Errorf("Unable to create Neutrino DB: %s", err)
-				continue
-			}
-			defer spvdb.Close()
-			chainService, err = neutrino.NewChainService(
-				neutrino.Config{
-					DataDir:      netDir,
-					Database:     spvdb,
-					ChainParams:  *activeNet.Params,
-					ConnectPeers: cfg.ConnectPeers,
-					AddPeers:     cfg.AddPeers,
-				})
-			if err != nil {
-				log.Errorf("Couldn't create Neutrino ChainService: %s", err)
-				continue
-			}
-			chainClient = chain.NewNeutrinoClient(activeNet.Params, chainService)
-			err = chainClient.Start()
-			if err != nil {
-				log.Errorf("Couldn't start Neutrino client: %s", err)
-			}
-		} else {
-			chainClient, err = startChainRPC(certs)
-			if err != nil {
-				log.Errorf("Unable to open connection to consensus RPC server: %v", err)
-				continue
-			}
+		chainClient, err = startChainRPC(certs)
+		if err != nil {
+			log.Errorf("Unable to open connection to consensus RPC server: %v", err)
+			continue
 		}
 
 		// Rather than inlining this logic directly into the loader
