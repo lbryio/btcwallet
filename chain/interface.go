@@ -19,8 +19,8 @@ const isCurrentDelta = 2 * time.Hour
 // TODO: Refactor each into a driver and use dynamic registration.
 func BackEnds() []string {
 	return []string{
-		"bitcoind",
-		"",
+		"lbrycrd",
+		"lbcd",
 	}
 }
 
