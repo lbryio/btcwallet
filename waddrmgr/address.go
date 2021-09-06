@@ -53,7 +53,7 @@ const (
 	WitnessScript
 )
 
-// ManagedAddress is an interface that provides acces to information regarding
+// ManagedAddress is an interface that provides access to information regarding
 // an address managed by an address manager. Concrete implementations of this
 // type may provide further fields to provide information specific to that type
 // of address.

@@ -78,6 +78,7 @@ var rpcHandlers = map[string]struct {
 	"getaccount":             {handler: getAccount},
 	"getaccountaddress":      {handler: getAccountAddress},
 	"getaddressesbyaccount":  {handler: getAddressesByAccount},
+	"getaddressinfo":         {handler: getAddressInfo},
 	"getbalance":             {handler: getBalance},
 	"getbestblockhash":       {handler: getBestBlockHash},
 	"getblockcount":          {handler: getBlockCount},
@@ -413,6 +414,161 @@ func getAddressesByAccount(icmd interface{}, w *wallet.Wallet) (interface{}, err
 		addrStrs[i] = a.EncodeAddress()
 	}
 	return addrStrs, nil
+}
+
+// getAddressInfo handles a getaddressinfo request by returning
+// information about the given address.
+// Some of the information will only be present if the address
+// is in the active wallet.
+func getAddressInfo(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
+	cmd := icmd.(*btcjson.GetAddressInfoCmd)
+
+	var result btcjson.GetAddressInfoResult
+
+	addr, err := decodeAddress(cmd.Address, w.ChainParams())
+	if err != nil {
+		return nil, err
+	}
+	result.Address = addr.EncodeAddress()
+
+	buf := bytes.NewBuffer(nil)
+	switch a := addr.(type) {
+	case *btcutil.AddressPubKey:
+		pubKey := a.PubKey().SerializeCompressed()
+		pubKeyStr := hex.EncodeToString(pubKey)
+		result.PubKey = &pubKeyStr
+		isCompressed := true
+		result.IsCompressed = &isCompressed
+	case *btcutil.AddressPubKeyHash:
+		buf.WriteByte(0x76) // OP_DUP
+		buf.WriteByte(0xA9) // OP_HASH160
+		buf.WriteByte(0x14) // OP_DATA_20
+		buf.Write(addr.ScriptAddress())
+		buf.WriteByte(0x88) // OP_EQUALVERIFY
+		buf.WriteByte(0xAC) // OP_CHECKSIG
+	case *btcutil.AddressScriptHash:
+		buf.WriteByte(0xA9) // OP_HASH160
+		buf.Write(a.ScriptAddress())
+		buf.WriteByte(0x87) // OP_EQUAL
+		result.IsScript = true
+	case *btcutil.AddressWitnessPubKeyHash:
+		buf.WriteByte(0x00) // OP_0
+		buf.Write(a.ScriptAddress())
+		result.IsWitness = true
+		program := hex.EncodeToString(a.WitnessProgram())
+		result.WitnessProgram = &program
+		result.WitnessVersion = int(a.WitnessVersion())
+	case *btcutil.AddressWitnessScriptHash:
+		buf.WriteByte(0x00) // OP_0
+		buf.Write(a.ScriptAddress())
+		result.IsScript = true
+		result.IsWitness = true
+		program := hex.EncodeToString(a.WitnessProgram())
+		result.WitnessProgram = &program
+		result.WitnessVersion = int(a.WitnessVersion())
+	}
+	result.ScriptPubKey = hex.EncodeToString(buf.Bytes())
+
+	ainfo, err := w.AddressInfo(addr)
+	if err != nil {
+		if waddrmgr.IsError(err, waddrmgr.ErrAddressNotFound) {
+			return result, nil
+		}
+		return nil, err
+	}
+
+	result.IsMine = true
+	result.IsChange = ainfo.Internal()
+	isCompressed := ainfo.Compressed()
+	result.IsCompressed = &isCompressed
+
+	switch ma := ainfo.(type) {
+	case waddrmgr.ManagedPubKeyAddress:
+		pubKey := ma.ExportPubKey()
+		result.PubKey = &pubKey
+
+		scope, path, isHD := ma.DerivationInfo()
+		if isHD {
+
+			hdPath := fmt.Sprintf("%s/%d/%d/%d",
+				scope.String(), path.Account, path.Branch, path.Index)
+			if path.Account >= 0x80000000 {
+				hdPath = fmt.Sprintf("%s/%d'/%d/%d",
+					scope.String(), path.Account-0x80000000, path.Branch, path.Index)
+
+			}
+			result.HDKeyPath = &hdPath
+		}
+
+	case waddrmgr.ManagedScriptAddress:
+		result.IsScript = true
+
+		// The script is only available if the manager is unlocked, so
+		// just break out now if there is an error.
+		script, err := ma.Script()
+		if err != nil {
+			if waddrmgr.IsError(err, waddrmgr.ErrWatchingOnly) {
+				result.IsWatchOnly = true
+			}
+			break
+		}
+		hexScript := hex.EncodeToString(script)
+		result.Hex = &hexScript
+
+		// This typically shouldn't fail unless an invalid script was
+		// imported.  However, if it fails for any reason, there is no
+		// further information available, so just set the script type
+		// a non-standard and break out now.
+		class, addrs, reqSigs, err := txscript.ExtractPkScriptAddrs(script, w.ChainParams())
+		if err != nil {
+			class = txscript.NonStandardTy
+			result.ScriptType = &class
+			break
+		}
+		addrStrings := make([]string, len(addrs))
+		for i, a := range addrs {
+			addrStrings[i] = a.EncodeAddress()
+		}
+		result.PubKeys = &addrStrings
+
+		// Multi-signature scripts also provide the number of required
+		// signatures.
+		result.ScriptType = &class
+		if class == txscript.MultiSigTy {
+			result.SignaturesRequired = &reqSigs
+		}
+	}
+	// type embeddedAddressInfo struct {
+	// 	# Address             string                `json:"address"`
+	// 	# ScriptPubKey        string                `json:"scriptPubKey"`
+	// 	Solvable            bool                  `json:"solvable"`
+	// 	Descriptor          *string               `json:"desc,omitempty"`
+	// 	IsScript            bool                  `json:"isscript"`
+	// 	IsChange            bool                  `json:"ischange"`
+	// 	IsWitness           bool                  `json:"iswitness"`
+	// 	WitnessVersion      int                   `json:"witness_version,omitempty"`
+	// 	WitnessProgram      *string               `json:"witness_program,omitempty"`
+	// 	ScriptType          *txscript.ScriptClass `json:"script,omitempty"`
+	// 	Hex                 *string               `json:"hex,omitempty"`
+	// 	PubKeys             *[]string             `json:"pubkeys,omitempty"`
+	// 	SignaturesRequired  *int                  `json:"sigsrequired,omitempty"`
+	// 	PubKey              *string               `json:"pubkey,omitempty"`
+	// 	IsCompressed        *bool                 `json:"iscompressed,omitempty"`
+	// 	HDMasterFingerprint *string               `json:"hdmasterfingerprint,omitempty"`
+	// 	Labels              []string              `json:"labels"`
+	// }
+
+	// type GetAddressInfoResult struct {
+	// 	embeddedAddressInfo
+	// 	IsMine      bool                 `json:"ismine"`
+	// 	IsWatchOnly bool                 `json:"iswatchonly"`
+	// 	Timestamp   *int                 `json:"timestamp,omitempty"`
+	// 	HDKeyPath   *string              `json:"hdkeypath,omitempty"`
+	// 	HDSeedID    *string              `json:"hdseedid,omitempty"`
+	// 	Embedded    *embeddedAddressInfo `json:"embedded,omitempty"`
+	// }
+
+	return result, nil
 }
 
 // getBalance handles a getbalance request by returning the balance for an
