@@ -1,19 +1,14 @@
-lbcwallet
-=========
+# lbcwallet
 
-[![Build Status](https://travis-ci.org/lbryio/lbcwallet.png?branch=master)](https://travis-ci.org/lbryio/lbcwallet)
-[![Build status](https://ci.appveyor.com/api/projects/status/88nxvckdj8upqr36/branch/master?svg=true)](https://ci.appveyor.com/project/jrick/lbcwallet/branch/master)
-
-lbcwallet is a daemon handling bitcoin wallet functionality for a
-single user.  It acts as both an RPC client to  and an RPC server
-for wallet clients and legacy RPC applications.
+lbcwallet is a daemon, which provides lbry wallet functionality for a
+single user.
 
 Public and private keys are derived using the hierarchical
 deterministic format described by
 [BIP0032](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki).
-Unencrypted private keys are not supported and are never written to
-disk.  lbcwallet uses the
-`m/44'/<coin type>'/<account>'/<branch>/<address index>`
+Unencrypted private keys are not supported and are never written to disk.
+
+lbcwallet uses the `m/44'/<coin type>'/<account>'/<branch>/<address index>`
 HD path for all derived addresses, as described by
 [BIP0044](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki).
 
@@ -26,13 +21,6 @@ information would not allow an attacker to spend or steal coins, it
 does mean they could track all transactions involving your addresses
 and therefore know your exact balance.  In a future release, public data
 encryption will extend to transactions as well.
-
-lbcwallet is not an SPV client and requires connecting to a local or
-remote  instance for asynchronous blockchain queries and
-notifications over websockets.  Full  installation instructions
-can be found [here](https://github.com/lbryio/lbcd).  An alternative
-SPV mode that is compatible with  and Bitcoin Core is planned for
-a future release.
 
 Wallet clients can use one of two RPC servers:
 
@@ -54,140 +42,154 @@ Wallet clients can use one of two RPC servers:
      notifications for changes to the wallet, this is the RPC server to use.
      The gRPC server is documented [here](./rpc/documentation/README.md).
 
+## Security
+
+We take security seriously. Please contact [security](mailto:security@lbry.com) regarding any security issues.
+Our PGP key is [here](https://lbry.com/faq/pgp-key) if you need it.
+
 ## Requirements
 
-[Go](http://golang.org) 1.12 or newer.
+- [Go](http://golang.org) 1.16 or newer.
 
-## Installation and updating
+- `lbcwallet` is not an SPV client and requires connecting to a local or remote
+  `lbcd` for asynchronous blockchain queries and notifications over websockets.
 
-### Windows - MSIs Available
+  Full installation instructions can be found [here](https://github.com/lbryio/lbcd).
 
-Install the latest MSIs available here:
+## To Build lbcwallet, lbcd, and lbcctl from Source
 
-https://github.com/lbryio/lbcd/releases
+Install Go according to its [installation instructions](http://golang.org/doc/install).
 
-https://github.com/lbryio/lbcwallet/releases
+Build `lbcwallet`
 
-### Windows/Linux/BSD/POSIX - Build from source
-
-- Install Go according to the installation instructions here:
-  http://golang.org/doc/install
-
-- Ensure Go was installed properly and is a supported version:
-
-```bash
-$ go version
-$ go env GOROOT GOPATH
+``` sh
+git clone https://github.com/lbryio/lbcwallet
+cd lbcwallet
+go build .
 ```
 
-NOTE: The `GOROOT` and `GOPATH` above must not be the same path.  It is
-recommended that `GOPATH` is set to a directory in your home directory such as
-`~/goprojects` to avoid write permission issues.  It is also recommended to add
-`$GOPATH/bin` to your `PATH` at this point.
+To make the quick start guide self-contained, here's how we can build the `lbcd` and `lbcctl`
 
-- Run the following commands to obtain lbcwallet, all dependencies, and install it:
+``` sh
+git clone https://github.com/lbryio/lbcd
+cd lbcd
 
-```bash
-$ cd $GOPATH/src/github.com/lbryio/lbcwallet
-$ GO111MODULE=on go install -v . ./cmd/...
-```
+# build lbcd
+go build .
 
-- lbcwallet (and utilities) will now be installed in ```$GOPATH/bin```.  If you did
-  not already add the bin directory to your system path during Go installation,
-  we recommend you do so now.
-
-## Updating
-
-#### Windows
-
-Install a newer MSI
-
-#### Linux/BSD/MacOSX/POSIX - Build from Source
-
-- Run the following commands to update , all dependencies, and install it:
-
-```bash
-$ cd $GOPATH/src/github.com/lbryio/lbcwallet
-$ git pull
-$ GO111MODULE=on go install -v . ./cmd/...
+# build lbcctl
+go build ./cmd/lbcctl
 ```
 
 ## Getting Started
 
-The following instructions detail how to get started with lbcwallet connecting
-to a localhost .  Commands should be run in `cmd.exe` or PowerShell on
-Windows, or any terminal emulator on *nix.
+The first time running the `lbcwallet` we need to create a new wallet.
 
-- Run the following command to start :
-
-```
- -u rpcuser -P rpcpass
+``` sh
+./lbcwallet --create
 ```
 
-- Run the following command to create a wallet:
+Start a local instance of `lbcd` and have the `lbcwallet` connecting to it.
 
-```
-lbcwallet -u rpcuser -P rpcpass --create
-```
+``` sh
+# Start a lbcd with its RPC credentials
+./lbcd --txindex --rpcuser=lbcduser --rpcpass=lbcdpass
 
-- Run the following command to start lbcwallet:
+# Start a lbcwallet with its RPC credentials along with the lbcd's RPC credentials
+# The default lbcd instance to conect to is already localhost:9245 so we don't need to specify it explicitly here.
+./lbcwallet --username=rpcuser --password=rpcpass --lbcdusername=lbcduser --lbcdpassword=lbcdpass # --rpcconnect=localhost:9245
 
-```
-lbcwallet -u rpcuser -P rpcpass
-```
-
-If everything appears to be working, it is recommended at this point to
-copy the sample  and lbcwallet configurations and update with your
-RPC username and password.
-
-PowerShell (Installed from MSI):
-```
-PS> cp "$env:ProgramFiles\Lbcd Suite\Lbcd\sample-lbcd.conf" $env:LOCALAPPDATA\Lbcd\.conf
-PS> cp "$env:ProgramFiles\Lbcd Suite\lbcwallet\sample-lbcwallet.conf" $env:LOCALAPPDATA\lbcwallet\lbcwallet.conf
-PS> $editor $env:LOCALAPPDATA\Lbcd\lbcd.conf
-PS> $editor $env:LOCALAPPDATA\lbcwallet\lbcwallet.conf
+#
+#             rpcuser/rpcpass                lbcduser/lbcdpass
+# lbcctl  <-------------------> lbcwallet <--------------------> lbcd
+#             RPC port 9244                   RPC port 9245
+#
 ```
 
-PowerShell (Installed from source):
-```
-PS> cp $env:GOPATH\src\github.com\lbryio\lbcd\sample-lbcd.conf $env:LOCALAPPDATA\Lbcd\lbcd.conf
-PS> cp $env:GOPATH\src\github.com\lbryio\lbcwallet\sample-lbcwallet.conf $env:LOCALAPPDATA\lbcwallet\lbcwallet.conf
-PS> $editor $env:LOCALAPPDATA\Lbcd\lbcd.conf
-PS> $editor $env:LOCALAPPDATA\lbcwallet\lbcwallet.conf
-```
+If the `lbcd` and `lbcwallet` use the same RPC credentials, we can skip the `--lbcdusername` and `--lbcdpassword`
 
-Linux/BSD/POSIX (Installed from source):
-```bash
-$ cp $GOPATH/src/github.com/lbryio/lbcd/sample-.conf ~/./.conf
-$ cp $GOPATH/src/github.com/lbryio/lbcwallet/sample-lbcwallet.conf ~/.lbcwallet/lbcwallet.conf
-$ $EDITOR ~/./.conf
-$ $EDITOR ~/.lbcwallet/lbcwallet.conf
+``` sh
+./lbcd --txindex --rpcuser=rpcuser --rpcpass=rpcpass
+
+./lbcwallet --username=rpcuser --password=rpcpass
+
+#
+#             rpcuser/rpcpass                rpcuser/rpcpass
+# lbcctl  <-------------------> lbcwallet <--------------------> lbcd
+#             RPC port 9244                   RPC port 9245
+#
 ```
 
-## Issue Tracker
+Note:
 
+- `lbcd` and `lbcwallet` implements two disjoint sets of RPCs.
+- `lbcd` serves RPC on port 9245 while `lbcwallet` on port 9244.
+- `lbcwallet` can proxy non-wallet RPCs to its associated `lbcd`.
+
+Examples of using `lbcctl` to interact with the setup via RPCs:
+
+1. Calling non-wallet RPC directly on lbcd:
+
+   ``` sh
+   ./lbcctl --rpcuser=rpcuser --rpcpass=rpcpass getblockcount
+
+   #
+   # lbcctl  <-- getblockcount() --> lbcd
+   #             RPC port 9245      (handled)
+   #
+   ```
+
+2. Calling wallet RPC on lbcwallet (using `--wallet`)
+
+   ``` sh
+   ./lbcctl --rpcuser=rpcuser --rpcpass=rpcpass --wallet getbalance
+
+   #
+   # lbcctl  <-- getbalance() --> lbcwallet
+   #             RPC port 9244    (handled)
+   #
+   ```
+
+3. Calling non-wallet RPC on lbcwallet, which proxies it to lbcd:
+
+   ``` sh
+   ./lbcctl --rpcuser=rpcuser --rpcpass=rpcpass --wallet getblockcount
+
+   #
+   # lbcctl  <-- getblockcount() --> lbcwallet <-- getblockcount() --> lbcd
+   #             RPC port 9244       (proxied)     RPC port 9245
+   #
+   ```
+
+## Default Network and RPC Ports
+
+| Instance      | mainnet | testet | regtest |
+| ------------- | ------- | ------ | ------- |
+| lbcd Network  | 9246    | 19246  | 29246   |
+| lbcd RPC      | 9245    | 19245  | 29245   |
+| lbcwallet RPC | 9244    | 19244  | 29244   |
+
+Examples
+
+``` sh
+./lbcctl                    getblockcount # port  9245
+./lbcctl --wallet           getblockcount # port  9244
+./lbcctl --testnet          getblockcount # port 19245
+./lbcctl --wallet --regtest getblockcount # port 29244
+```
+
+## Contributing
+
+Contributions to this project are welcome, encouraged, and compensated.
 The [integrated github issue tracker](https://github.com/lbryio/lbcwallet/issues)
-is used for this project.
+is used for this project. All pull requests will be considered.
 
-## GPG Verification Key
-
-All official release tags are signed by Conformal so users can ensure the code
-has not been tampered with and is coming from the lbryio developers.  To
-verify the signature perform the following:
-
-- Download the public key from the Conformal website at
-  https://opensource.conformal.com/GIT-GPG-KEY-conformal.txt
-
-- Import the public key into your GPG keyring:
-  ```bash
-  gpg --import GIT-GPG-KEY-conformal.txt
-  ```
-
-- Verify the release tag with the following command where `TAG_NAME` is a
-  placeholder for the specific tag:
-  ```bash
-  git tag -v TAG_NAME
-  ```
+<!-- ## Release Verification
+Please see our [documentation on the current build/verification
+process](https://github.com/lbryio/lbcwallet/tree/master/release) for all our
+releases for information on how to verify the integrity of published releases
+using our reproducible build system.
+-->
 
 ## License
 
