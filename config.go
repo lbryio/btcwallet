@@ -51,9 +51,10 @@ type config struct {
 	Create          bool                    `long:"create" description:"Create the wallet if it does not exist"`
 	CreateTemp      bool                    `long:"createtemp" description:"Create a temporary simulation wallet (pass=password) in the data directory indicated; must call with --datadir"`
 	AppDataDir      *cfgutil.ExplicitString `short:"A" long:"appdata" description:"Application data directory for wallet config, databases and logs"`
-	TestNet3        bool                    `long:"testnet" description:"Use the test Bitcoin network (version 3) (default mainnet)"`
-	SimNet          bool                    `long:"simnet" description:"Use the simulation test network (default mainnet)"`
-	SigNet          bool                    `long:"signet" description:"Use the signet test network (default mainnet)"`
+	TestNet3        bool                    `long:"testnet" description:"Use the test Bitcoin network (version 3) (default client port: 19244, server port: 19245)"`
+	Regtest         bool                    `long:"regtest" description:"Use the regression test network (default client port: 29244, server port: 29245)"`
+	SimNet          bool                    `long:"simnet" description:"Use the simulation test network (default client port: 39244, server port: 39245)"`
+	SigNet          bool                    `long:"signet" description:"Use the signet test network (default client port: 49244, server port: 49245)"`
 	SigNetChallenge string                  `long:"signetchallenge" description:"Connect to a custom signet network defined by this challenge instead of using the global default signet test network -- Can be specified multiple times"`
 	SigNetSeedNode  []string                `long:"signetseednode" description:"Specify a seed node for the signet network instead of using the global default signet network seed nodes"`
 	NoInitialLoad   bool                    `long:"noinitialload" description:"Defer wallet creation/opening on startup and enable loading wallets over RPC"`
@@ -66,7 +67,7 @@ type config struct {
 	WalletPass string `long:"walletpass" default-mask:"-" description:"The public wallet password -- Only required if the wallet was created with one"`
 
 	// RPC client options
-	RPCConnect       string                  `short:"c" long:"rpcconnect" description:"Hostname/IP and port of lbcd RPC server to connect to (default localhost:8334, testnet: localhost:18334, simnet: localhost:18556)"`
+	RPCConnect       string                  `short:"c" long:"rpcconnect" description:"Hostname/IP and port of lbcd RPC server to connect to (default localhost:9245, testnet: localhost:19245, regtest: localhost:29245 simnet: localhost:39245)"`
 	CAFile           *cfgutil.ExplicitString `long:"cafile" description:"File containing root certificates to authenticate a TLS connections with lbcd"`
 	DisableClientTLS bool                    `long:"noclienttls" description:"Disable TLS for the RPC client -- NOTE: This is only allowed if the RPC client is connecting to localhost"`
 	LbcdUsername     string                  `long:"lbcdusername" description:"Username for lbcd authentication"`
@@ -95,7 +96,7 @@ type config struct {
 	RPCKey                 *cfgutil.ExplicitString `long:"rpckey" description:"File containing the certificate key"`
 	OneTimeTLSKey          bool                    `long:"onetimetlskey" description:"Generate a new TLS certpair at startup, but only write the certificate to disk"`
 	DisableServerTLS       bool                    `long:"noservertls" description:"Disable TLS for the RPC server -- NOTE: This is only allowed if the RPC server is bound to localhost"`
-	LegacyRPCListeners     []string                `long:"rpclisten" description:"Listen for legacy RPC connections on this interface/port (default port: 8332, testnet: 18332, simnet: 18554)"`
+	LegacyRPCListeners     []string                `long:"rpclisten" description:"Listen for legacy RPC connections on this interface/port (default port: 9244, testnet: 19244, regtest: 29244, simnet: 29244)"`
 	LegacyRPCMaxClients    int64                   `long:"rpcmaxclients" description:"Max number of legacy RPC clients for standard connections"`
 	LegacyRPCMaxWebsockets int64                   `long:"rpcmaxwebsockets" description:"Max number of legacy RPC websocket connections"`
 	Username               string                  `short:"u" long:"username" description:"Username for legacy RPC and lbcd authentication (if lbcdusername is unset)"`
@@ -360,6 +361,10 @@ func loadConfig() (*config, []string, error) {
 	numNets := 0
 	if cfg.TestNet3 {
 		activeNet = &netparams.TestNet3Params
+		numNets++
+	}
+	if cfg.Regtest {
+		activeNet = &netparams.RegTestParams
 		numNets++
 	}
 	if cfg.SimNet {

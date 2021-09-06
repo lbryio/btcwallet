@@ -45,6 +45,7 @@ func errContext(err error, context string) error {
 var opts = struct {
 	TestNet3              bool                `long:"testnet" description:"Use the test bitcoin network (version 3)"`
 	SimNet                bool                `long:"simnet" description:"Use the simulation bitcoin network"`
+	RegTest               bool                `long:"regtest" description:"Use the regression test network"`
 	RPCConnect            string              `short:"c" long:"connect" description:"Hostname[:port] of wallet RPC server"`
 	RPCUsername           string              `short:"u" long:"rpcuser" description:"Wallet RPC username"`
 	RPCCertificateFile    string              `long:"cafile" description:"Wallet RPC TLS certificate"`
@@ -55,6 +56,7 @@ var opts = struct {
 }{
 	TestNet3:              false,
 	SimNet:                false,
+	RegTest:               false,
 	RPCConnect:            "localhost",
 	RPCUsername:           "",
 	RPCCertificateFile:    filepath.Join(walletDataDirectory, "rpc.cert"),
@@ -89,6 +91,8 @@ func init() {
 		activeNet = &netparams.TestNet3Params
 	} else if opts.SimNet {
 		activeNet = &netparams.SimNetParams
+	} else if opts.RegTest {
+		activeNet = &netparams.RegTestParams
 	}
 
 	if opts.RPCConnect == "" {

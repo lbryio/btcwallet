@@ -21,32 +21,40 @@ type Params struct {
 //  on the main network (wire.MainNet).
 var MainNetParams = Params{
 	Params:        &chaincfg.MainNetParams,
-	RPCClientPort: "8334",
-	RPCServerPort: "8332",
+	RPCClientPort: "9245",
+	RPCServerPort: "9244",
 }
 
 // TestNet3Params contains parameters specific running lbcwallet and
 //  on the test network (version 3) (wire.TestNet3).
 var TestNet3Params = Params{
 	Params:        &chaincfg.TestNet3Params,
-	RPCClientPort: "18334",
-	RPCServerPort: "18332",
+	RPCClientPort: "19245",
+	RPCServerPort: "19244",
+}
+
+// RegNetParams contains parameters specific to the regression test network
+// (wire.RegNet).
+var RegTestParams = Params{
+	Params:        &chaincfg.RegressionNetParams,
+	RPCClientPort: "29245",
+	RPCServerPort: "29244",
 }
 
 // SimNetParams contains parameters specific to the simulation test network
 // (wire.SimNet).
 var SimNetParams = Params{
 	Params:        &chaincfg.SimNetParams,
-	RPCClientPort: "18556",
-	RPCServerPort: "18554",
+	RPCClientPort: "39245",
+	RPCServerPort: "39244",
 }
 
 // SigNetParams contains parameters specific to the signet test network
 // (wire.SigNet).
 var SigNetParams = Params{
 	Params:        &chaincfg.SigNetParams,
-	RPCClientPort: "38334",
-	RPCServerPort: "38332",
+	RPCClientPort: "49245",
+	RPCServerPort: "49244",
 }
 
 // SigNetWire is a helper function that either returns the given chain
