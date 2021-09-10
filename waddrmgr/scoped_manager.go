@@ -147,14 +147,14 @@ var (
 	// p2wkh change all change addresses.
 	KeyScopeBIP0049Plus = KeyScope{
 		Purpose: 49,
-		Coin:    0,
+		Coin:    140,
 	}
 
 	// KeyScopeBIP0084 is the key scope for BIP0084 derivation. BIP0084
 	// will be used to derive all p2wkh addresses.
 	KeyScopeBIP0084 = KeyScope{
 		Purpose: 84,
-		Coin:    0,
+		Coin:    140,
 	}
 
 	// KeyScopeBIP0044 is the key scope for BIP0044 derivation. Legacy
@@ -162,7 +162,7 @@ var (
 	// it.
 	KeyScopeBIP0044 = KeyScope{
 		Purpose: 44,
-		Coin:    0,
+		Coin:    140,
 	}
 
 	// DefaultKeyScopes is the set of default key scopes that will be
