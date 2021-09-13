@@ -10,10 +10,13 @@ import (
 	"time"
 
 	"github.com/lbryio/lbcd/blockchain"
+	"github.com/lbryio/lbcd/chaincfg"
 	"github.com/lbryio/lbcd/chaincfg/chainhash"
 	"github.com/lbryio/lbcd/wire"
 	btcutil "github.com/lbryio/lbcutil"
 )
+
+var chainParams = chaincfg.RegressionNetParams
 
 // conn mocks a network connection by implementing the net.Conn interface. It is
 // used to test peer connection without actually opening a network connection.
