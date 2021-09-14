@@ -4,17 +4,18 @@ LINT_PKG := github.com/golangci/golangci-lint/cmd/golangci-lint
 GOACC_PKG := github.com/ory/go-acc
 GOIMPORTS_PKG := golang.org/x/tools/cmd/goimports
 
+GOPATH ?= ${HOME}/go
 GO_BIN := ${GOPATH}/bin
-LINT_BIN := $(GO_BIN)/golangci-lint
+LINT_BIN := ${GO_BIN}/golangci-lint
 GOACC_BIN := $(GO_BIN)/go-acc
 
-LINT_COMMIT := v1.18.0
-GOACC_COMMIT := 80342ae2e0fcf265e99e76bcc4efd022c7c3811b
+LINT_COMMIT := v1.42.1
+GOACC_COMMIT := v0.2.6
 
-DEPGET := cd /tmp && GO111MODULE=on go get -v
-GOBUILD := GO111MODULE=on go build -v
-GOINSTALL := GO111MODULE=on go install -v
-GOTEST := GO111MODULE=on go test
+DEPGET := go install
+GOBUILD := go build -v
+GOINSTALL := go install -v
+GOTEST := go test
 
 GOLIST := go list -deps $(PKG)/... | grep '$(PKG)'
 GOLIST_COVER := $$(go list -deps $(PKG)/... | grep '$(PKG)')
