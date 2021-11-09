@@ -1,7 +1,16 @@
 name: CI
 
 on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 'Note'
+        required: false
+        default: ''
   push:
+    tags:
+      - '*'
+
     branches:
       - "master"
   pull_request:
