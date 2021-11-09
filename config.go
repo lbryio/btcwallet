@@ -442,20 +442,23 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Exit if you try to use a simulation wallet with a standard
-	// data directory.
-	if !(cfg.AppDataDir.ExplicitlySet() || cfg.DataDir.ExplicitlySet()) && cfg.CreateTemp {
-		fmt.Fprintln(os.Stderr, "Tried to create a temporary simulation "+
-			"wallet, but failed to specify data directory!")
-		os.Exit(0)
-	}
+	if cfg.CreateTemp {
+		errMsg := "Tried to create a temporary simulation wallet"
+		// Exit if you try to use a simulation wallet with a standard
+		// data directory.
+		if !(cfg.AppDataDir.ExplicitlySet() || cfg.DataDir.ExplicitlySet()) {
+			errMsg += ", but failed to specify data directory!"
+			fmt.Fprintln(os.Stderr, errMsg)
+			os.Exit(0)
+		}
 
-	// Exit if you try to use a simulation wallet on anything other than
-	// simnet or testnet3.
-	if !cfg.SimNet && cfg.CreateTemp {
-		fmt.Fprintln(os.Stderr, "Tried to create a temporary simulation "+
-			"wallet for network other than simnet!")
-		os.Exit(0)
+		// Exit if you try to use a simulation wallet on anything other than
+		// simnet, regtest or testnet3.
+		if !(cfg.Regtest || cfg.SimNet || cfg.TestNet3) {
+			errMsg += "for network other than simnet, regtest, or testnet3"
+			fmt.Fprintln(os.Stderr, errMsg)
+			os.Exit(0)
+		}
 	}
 
 	// Ensure the wallet exists or create it when the create flag is set.
