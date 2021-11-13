@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -829,6 +830,22 @@ func renameAccount(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	return nil, w.RenameAccount(waddrmgr.KeyScopeBIP0044, account, cmd.NewAccount)
 }
 
+func lookupKeyScope(kind *string) (waddrmgr.KeyScope, error) {
+	if kind == nil {
+		return waddrmgr.KeyScopeBIP0044, nil
+	}
+	// must be one of legacy / p2pkh or p2sh-p2wkh / p2sh-segwit, or p2wkh / bech32
+	switch strings.ToLower(*kind) {
+	case "legacy", "p2pkh": // could add "default" but it might be confused with the 1st parameter
+		return waddrmgr.KeyScopeBIP0044, nil
+	case "p2sh-p2wpkh", "p2sh-p2wkh", "p2sh-segwit":
+		return waddrmgr.KeyScopeBIP0049Plus, nil
+	case "p2wpkh", "p2wkh", "bech32":
+		return waddrmgr.KeyScopeBIP0084, nil
+	}
+	return waddrmgr.KeyScopeBIP0044, fmt.Errorf("unrecognized address type: %s", *kind)
+}
+
 // getNewAddress handles a getnewaddress request by returning a new
 // address for an account.  If the account does not exist an appropriate
 // error is returned.
@@ -838,14 +855,21 @@ func getNewAddress(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	cmd := icmd.(*btcjson.GetNewAddressCmd)
 
 	acctName := defaultAccountName
-	if cmd.Account != nil {
+	if cmd.Account != nil && len(*cmd.Account) > 0 {
 		acctName = *cmd.Account
 	}
-	account, err := w.AccountNumber(waddrmgr.KeyScopeBIP0044, acctName)
+
+	keyScope, err := lookupKeyScope(cmd.AddressType)
 	if err != nil {
 		return nil, err
 	}
-	addr, err := w.NewAddress(account, waddrmgr.KeyScopeBIP0044)
+
+	account, err := w.AccountNumber(keyScope, acctName)
+	if err != nil {
+		return nil, err
+	}
+
+	addr, err := w.NewAddress(account, keyScope)
 	if err != nil {
 		return nil, err
 	}
