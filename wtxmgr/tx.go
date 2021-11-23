@@ -15,6 +15,7 @@ import (
 	"github.com/lbryio/lbcd/blockchain"
 	"github.com/lbryio/lbcd/chaincfg"
 	"github.com/lbryio/lbcd/chaincfg/chainhash"
+	"github.com/lbryio/lbcd/txscript"
 	"github.com/lbryio/lbcd/wire"
 	btcutil "github.com/lbryio/lbcutil"
 	"github.com/lbryio/lbcwallet/walletdb"
@@ -24,6 +25,9 @@ import (
 const (
 	// TxLabelLimit is the length limit we impose on transaction labels.
 	TxLabelLimit = 500
+
+	ChangeFlag = 2
+	StakeFlag = 4
 )
 
 var (
@@ -114,7 +118,7 @@ type credit struct {
 	outPoint wire.OutPoint
 	block    Block
 	amount   btcutil.Amount
-	change   bool
+	flags    byte
 	spentBy  indexedIncidence // Index == ^uint32(0) if unspent
 }
 
@@ -304,14 +308,14 @@ func (s *Store) updateMinedBalance(ns walletdb.ReadWriteBucket, rec *TxRecord,
 		if err != nil {
 			return err
 		}
-		amount, change, err := fetchRawUnminedCreditAmountChange(it.cv)
+		amount, flags, err := fetchRawUnminedCreditAmountChange(it.cv)
 		if err != nil {
 			return err
 		}
 
 		cred.outPoint.Index = index
 		cred.amount = amount
-		cred.change = change
+		cred.flags = flags
 
 		if err := putUnspentCredit(ns, &cred); err != nil {
 			return err
@@ -494,6 +498,11 @@ func (s *Store) AddCredit(ns walletdb.ReadWriteBucket, rec *TxRecord, block *Blo
 // bool return specifies whether the unspent output is newly added (true) or a
 // duplicate (false).
 func (s *Store) addCredit(ns walletdb.ReadWriteBucket, rec *TxRecord, block *BlockMeta, index uint32, change bool) (bool, error) {
+	flags := isStake(rec.MsgTx.TxOut[index])
+	if change {
+		flags |= ChangeFlag
+	}
+
 	if block == nil {
 		// If the outpoint that we should mark as credit already exists
 		// within the store, either as unconfirmed or confirmed, then we
@@ -507,7 +516,7 @@ func (s *Store) addCredit(ns walletdb.ReadWriteBucket, rec *TxRecord, block *Blo
 				rec.Hash.String())
 			return false, nil
 		}
-		v := valueUnminedCredit(btcutil.Amount(rec.MsgTx.TxOut[index].Value), change)
+		v := valueUnminedCredit(btcutil.Amount(rec.MsgTx.TxOut[index].Value), flags)
 		return true, putRawUnminedCredit(ns, k, v)
 	}
 
@@ -527,7 +536,7 @@ func (s *Store) addCredit(ns walletdb.ReadWriteBucket, rec *TxRecord, block *Blo
 		},
 		block:   block.Block,
 		amount:  txOutAmt,
-		change:  change,
+		flags:  flags,
 		spentBy: indexedIncidence{index: ^uint32(0)},
 	}
 	v = valueUnspentCredit(&cred)
@@ -546,6 +555,15 @@ func (s *Store) addCredit(ns walletdb.ReadWriteBucket, rec *TxRecord, block *Blo
 	}
 
 	return true, putUnspent(ns, &cred.outPoint, &block.Block)
+}
+
+func isStake(out *wire.TxOut) byte {
+	if len(out.PkScript) > 0 &&
+		(out.PkScript[0] == txscript.OP_CLAIMNAME || out.PkScript[0] == txscript.OP_SUPPORTCLAIM ||
+			out.PkScript[0] == txscript.OP_UPDATECLAIM) {
+		return StakeFlag
+	}
+	return 0
 }
 
 // Rollback removes all blocks at height onwards, moving any transactions within
@@ -710,12 +728,12 @@ func (s *Store) rollback(ns walletdb.ReadWriteBucket, height int32) error {
 					continue
 				}
 
-				amt, change, err := fetchRawCreditAmountChange(v)
+				amt, flags, err := fetchRawCreditAmountChange(v)
 				if err != nil {
 					return err
 				}
 				outPointKey := canonicalOutPoint(&rec.Hash, uint32(i))
-				unminedCredVal := valueUnminedCredit(amt, change)
+				unminedCredVal := valueUnminedCredit(amt, flags)
 				err = putRawUnminedCredit(ns, outPointKey, unminedCredVal)
 				if err != nil {
 					return err
@@ -918,14 +936,14 @@ func (s *Store) UnspentOutputs(ns walletdb.ReadBucket) ([]Credit, error) {
 //
 // Balance may return unexpected results if syncHeight is lower than the block
 // height of the most recent mined transaction in the store.
-func (s *Store) Balance(ns walletdb.ReadBucket, minConf int32, syncHeight int32) (btcutil.Amount, error) {
+func (s *Store) Balance(ns walletdb.ReadBucket, minConf int32, syncHeight int32) (btcutil.Amount, btcutil.Amount, error) {
 	bal, err := fetchMinedBalance(ns)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
-	// Subtract the balance for each credit that is spent by an unmined
-	// transaction.
+	// Subtract the balance for each credit that is spent by an unmined transaction or moved to stake.
+	var staked btcutil.Amount
 	var op wire.OutPoint
 	var block Block
 	err = ns.NestedReadBucket(bucketUnspent).ForEach(func(k, v []byte) error {
@@ -938,14 +956,15 @@ func (s *Store) Balance(ns walletdb.ReadBucket, minConf int32, syncHeight int32)
 			return err
 		}
 
+		_, c := existsCredit(ns, &op.Hash, op.Index, &block)
+		amt, flags, err := fetchRawCreditAmountChange(c)
+		if err != nil {
+			return err
+		}
+
 		// Subtract the output's amount if it's locked.
 		_, _, isLocked := isLockedOutput(ns, op, s.clock.Now())
 		if isLocked {
-			_, v := existsCredit(ns, &op.Hash, op.Index, &block)
-			amt, err := fetchRawCreditAmount(v)
-			if err != nil {
-				return err
-			}
 			bal -= amt
 
 			// To prevent decrementing the balance twice if the
@@ -954,22 +973,20 @@ func (s *Store) Balance(ns walletdb.ReadBucket, minConf int32, syncHeight int32)
 		}
 
 		if existsRawUnminedInput(ns, k) != nil {
-			_, v := existsCredit(ns, &op.Hash, op.Index, &block)
-			amt, err := fetchRawCreditAmount(v)
-			if err != nil {
-				return err
-			}
 			bal -= amt
+		} else if (flags & StakeFlag) > 0 {
+			bal -= amt
+			staked += amt
 		}
 
 		return nil
 	})
 	if err != nil {
 		if _, ok := err.(Error); ok {
-			return 0, err
+			return 0, 0, err
 		}
 		str := "failed iterating unspent outputs"
-		return 0, storeError(ErrDatabase, str, err)
+		return 0, 0, storeError(ErrDatabase, str, err)
 	}
 
 	// Decrement the balance for any unspent credit with less than
@@ -992,7 +1009,7 @@ func (s *Store) Balance(ns walletdb.ReadBucket, minConf int32, syncHeight int32)
 			txHash := &block.transactions[i]
 			rec, err := fetchTxRecord(ns, txHash, &block.Block)
 			if err != nil {
-				return 0, err
+				return 0, 0, err
 			}
 			numOuts := uint32(len(rec.MsgTx.TxOut))
 			for i := uint32(0); i < numOuts; i++ {
@@ -1017,7 +1034,7 @@ func (s *Store) Balance(ns walletdb.ReadBucket, minConf int32, syncHeight int32)
 				}
 				amt, spent, err := fetchRawCreditAmountSpent(v)
 				if err != nil {
-					return 0, err
+					return 0, 0, err
 				}
 				if spent {
 					continue
@@ -1031,7 +1048,7 @@ func (s *Store) Balance(ns walletdb.ReadBucket, minConf int32, syncHeight int32)
 		}
 	}
 	if blockIt.err != nil {
-		return 0, blockIt.err
+		return 0, 0, blockIt.err
 	}
 
 	// If unmined outputs are included, increment the balance for each
@@ -1064,14 +1081,14 @@ func (s *Store) Balance(ns walletdb.ReadBucket, minConf int32, syncHeight int32)
 		})
 		if err != nil {
 			if _, ok := err.(Error); ok {
-				return 0, err
+				return 0, 0, err
 			}
 			str := "failed to iterate over unmined credits bucket"
-			return 0, storeError(ErrDatabase, str, err)
+			return 0, 0, storeError(ErrDatabase, str, err)
 		}
 	}
 
-	return bal, nil
+	return bal, staked, nil
 }
 
 // PutTxLabel validates transaction labels and writes them to disk if they

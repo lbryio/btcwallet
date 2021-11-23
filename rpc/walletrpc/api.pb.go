@@ -892,6 +892,7 @@ type FundTransactionRequest struct {
 	RequiredConfirmations    int32  `protobuf:"varint,3,opt,name=required_confirmations,json=requiredConfirmations" json:"required_confirmations,omitempty"`
 	IncludeImmatureCoinbases bool   `protobuf:"varint,4,opt,name=include_immature_coinbases,json=includeImmatureCoinbases" json:"include_immature_coinbases,omitempty"`
 	IncludeChangeScript      bool   `protobuf:"varint,5,opt,name=include_change_script,json=includeChangeScript" json:"include_change_script,omitempty"`
+	IncludeStakes            bool   `protobuf:"varint,6,opt,name=include_stakes,json=includeStakes" json:"include_stakes,omitempty"`
 }
 
 func (m *FundTransactionRequest) Reset()                    { *m = FundTransactionRequest{} }

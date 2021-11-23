@@ -585,7 +585,7 @@ func getBalance(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 		accountName = *cmd.Account
 	}
 	if accountName == "*" {
-		balance, err = w.CalculateBalance(int32(*cmd.MinConf))
+		balance, _, err = w.CalculateBalance(int32(*cmd.MinConf))
 		if err != nil {
 			return nil, err
 		}
@@ -640,7 +640,7 @@ func getInfo(icmd interface{}, w *wallet.Wallet, chainClient *chain.RPCClient) (
 		return nil, err
 	}
 
-	bal, err := w.CalculateBalance(1)
+	bal, staked, err := w.CalculateBalance(1)
 	if err != nil {
 		return nil, err
 	}
@@ -649,6 +649,8 @@ func getInfo(icmd interface{}, w *wallet.Wallet, chainClient *chain.RPCClient) (
 	// to using the manager version.
 	info.WalletVersion = int32(waddrmgr.LatestMgrVersion)
 	info.Balance = bal.ToBTC()
+	_ = staked // TODO: add this to lbcd:
+	// info.Staked = staked.ToBTC()
 	info.PaytxFee = float64(txrules.DefaultRelayFeePerKb)
 	// We don't set the following since they don't make much sense in the
 	// wallet architecture:
@@ -834,7 +836,6 @@ func lookupKeyScope(kind *string) (waddrmgr.KeyScope, error) {
 	if kind == nil {
 		return waddrmgr.KeyScopeBIP0044, nil
 	}
-	// must be one of legacy / p2pkh or p2sh-p2wkh / p2sh-segwit, or p2wkh / bech32
 	switch strings.ToLower(*kind) {
 	case "legacy", "p2pkh": // could add "default" but it might be confused with the 1st parameter
 		return waddrmgr.KeyScopeBIP0044, nil

@@ -316,6 +316,11 @@ func (w *Wallet) findEligibleOutputs(dbtx walletdb.ReadTx,
 		if err != nil || len(addrs) != 1 {
 			continue
 		}
+
+		if isStake(output.PkScript) {
+			continue
+		}
+
 		scopedMgr, addrAcct, err := w.Manager.AddrAccount(addrmgrNs, addrs[0])
 		if err != nil {
 			continue

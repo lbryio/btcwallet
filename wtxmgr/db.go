@@ -543,9 +543,7 @@ func keyCredit(txHash *chainhash.Hash, index uint32, block *Block) []byte {
 func valueUnspentCredit(cred *credit) []byte {
 	v := make([]byte, 9)
 	byteOrder.PutUint64(v, uint64(cred.amount))
-	if cred.change {
-		v[8] |= 1 << 1
-	}
+	v[8] = cred.flags
 	return v
 }
 
@@ -598,13 +596,13 @@ func fetchRawCreditAmountSpent(v []byte) (btcutil.Amount, bool, error) {
 
 // fetchRawCreditAmountChange returns the amount of the credit and whether the
 // credit is marked as change.
-func fetchRawCreditAmountChange(v []byte) (btcutil.Amount, bool, error) {
+func fetchRawCreditAmountChange(v []byte) (btcutil.Amount, byte, error) {
 	if len(v) < 9 {
 		str := fmt.Sprintf("%s: short read (expected %d bytes, read %d)",
 			bucketCredits, 9, len(v))
-		return 0, false, storeError(ErrData, str, nil)
+		return 0, 0, storeError(ErrData, str, nil)
 	}
-	return btcutil.Amount(byteOrder.Uint64(v)), v[8]&(1<<1) != 0, nil
+	return btcutil.Amount(byteOrder.Uint64(v)), v[8], nil
 }
 
 // fetchRawCreditUnspentValue returns the unspent value for a raw credit key.
@@ -1037,12 +1035,10 @@ func deleteRawUnmined(ns walletdb.ReadWriteBucket, k []byte) error {
 //   [8]     Flags (1 byte)
 //             0x02: Change
 
-func valueUnminedCredit(amount btcutil.Amount, change bool) []byte {
+func valueUnminedCredit(amount btcutil.Amount, flags byte) []byte {
 	v := make([]byte, 9)
 	byteOrder.PutUint64(v, uint64(amount))
-	if change {
-		v[8] = 1 << 1
-	}
+	v[8] = flags
 	return v
 }
 
@@ -1071,14 +1067,13 @@ func fetchRawUnminedCreditAmount(v []byte) (btcutil.Amount, error) {
 	return btcutil.Amount(byteOrder.Uint64(v)), nil
 }
 
-func fetchRawUnminedCreditAmountChange(v []byte) (btcutil.Amount, bool, error) {
+func fetchRawUnminedCreditAmountChange(v []byte) (btcutil.Amount, byte, error) {
 	if len(v) < 9 {
 		str := "short unmined credit value"
-		return 0, false, storeError(ErrData, str, nil)
+		return 0, 0, storeError(ErrData, str, nil)
 	}
 	amt := btcutil.Amount(byteOrder.Uint64(v))
-	change := v[8]&(1<<1) != 0
-	return amt, change, nil
+	return amt, v[8], nil
 }
 
 func existsRawUnminedCredit(ns walletdb.ReadBucket, k []byte) []byte {
@@ -1146,14 +1141,14 @@ func (it *unminedCreditIterator) readElem() error {
 	if err != nil {
 		return err
 	}
-	amount, change, err := fetchRawUnminedCreditAmountChange(it.cv)
+	amount, flags, err := fetchRawUnminedCreditAmountChange(it.cv)
 	if err != nil {
 		return err
 	}
 
 	it.elem.Index = index
 	it.elem.Amount = amount
-	it.elem.Change = change
+	it.elem.Change = (flags & ChangeFlag) > 0
 	// Spent intentionally not set
 
 	return nil

@@ -1462,16 +1462,17 @@ func (w *Wallet) AccountAddresses(account uint32) (addrs []btcutil.Address, err 
 // a UTXO must be in a block.  If confirmations is 1 or greater,
 // the balance will be calculated based on how many how many blocks
 // include a UTXO.
-func (w *Wallet) CalculateBalance(confirms int32) (btcutil.Amount, error) {
+func (w *Wallet) CalculateBalance(confirms int32) (btcutil.Amount, btcutil.Amount, error) {
 	var balance btcutil.Amount
+	var staked btcutil.Amount
 	err := walletdb.View(w.db, func(tx walletdb.ReadTx) error {
 		txmgrNs := tx.ReadBucket(wtxmgrNamespaceKey)
 		var err error
 		blk := w.Manager.SyncedTo()
-		balance, err = w.TxStore.Balance(txmgrNs, confirms, blk.Height)
+		balance, staked, err = w.TxStore.Balance(txmgrNs, confirms, blk.Height)
 		return err
 	})
-	return balance, err
+	return balance, staked, err
 }
 
 // Balances records total, spendable (by policy), and immature coinbase
@@ -1511,7 +1512,7 @@ func (w *Wallet) CalculateAccountBalances(account uint32, confirms int32) (Balan
 			if err == nil && len(addrs) > 0 {
 				_, outputAcct, err = w.Manager.AddrAccount(addrmgrNs, addrs[0])
 			}
-			if err != nil || outputAcct != account {
+			if err != nil || outputAcct != account || isStake(output.PkScript) {
 				continue
 			}
 
@@ -2478,6 +2479,9 @@ func (w *Wallet) AccountBalances(scope waddrmgr.KeyScope,
 			if err != nil || len(addrs) == 0 {
 				continue
 			}
+			if isStake(output.PkScript) {
+				continue
+			}
 			outputAcct, err := manager.AddrAccount(addrmgrNs, addrs[0])
 			if err != nil {
 				continue
@@ -2651,7 +2655,8 @@ func (w *Wallet) ListUnspent(minconf, maxconf int32,
 				ScriptPubKey:  hex.EncodeToString(output.PkScript),
 				Amount:        output.Amount.ToBTC(),
 				Confirmations: int64(confs),
-				Spendable:     spendable,
+				Spendable:     spendable, // presently false for stakes
+				// TODO: add an IsStake flag here to lbcd
 			}
 
 			// BUG: this should be a JSON array so that all

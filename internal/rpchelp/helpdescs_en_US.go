@@ -84,9 +84,10 @@ var helpDescsEnUS = map[string]string{
 	"infowalletresult-keypoololdest":   "Unset",
 
 	// GetNewAddressCmd help.
-	"getnewaddress--synopsis": "Generates and returns a new payment address.",
-	"getnewaddress-account":   "DEPRECATED -- Account name the new address will belong to (default=\"default\")",
-	"getnewaddress--result0":  "The payment address",
+	"getnewaddress--synopsis":   "Generates and returns a new payment address.",
+	"getnewaddress-account":     "DEPRECATED -- Account name the new address will belong to (default=\"default\")",
+	"getnewaddress-addresstype": "Address type. Must be one of legacy / p2pkh, p2sh-p2wpkh / p2sh-p2wkh / p2sh-segwit, or p2wpkh / p2wkh / bech32",
+	"getnewaddress--result0":    "The payment address",
 
 	// GetRawChangeAddressCmd help.
 	"getrawchangeaddress--synopsis": "Generates and returns a new internal payment address for use as a change address in raw transactions.",

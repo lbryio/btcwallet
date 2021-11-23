@@ -29,6 +29,7 @@ var (
 type OutputSelectionPolicy struct {
 	Account               uint32
 	RequiredConfirmations int32
+	IncludeStakes         bool
 }
 
 func (p *OutputSelectionPolicy) meetsRequiredConfs(txHeight, curHeight int32) bool {
@@ -82,6 +83,13 @@ func (w *Wallet) UnspentOutputs(policy OutputSelectionPolicy) ([]*TransactionOut
 			outputSource := OutputKindNormal
 			if output.FromCoinBase {
 				outputSource = OutputKindCoinbase
+			}
+
+			if isStake(output.PkScript) {
+				if !policy.IncludeStakes {
+					continue
+				}
+				outputSource = OutputKindStake
 			}
 
 			result := &TransactionOutput{

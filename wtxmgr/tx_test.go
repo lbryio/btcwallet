@@ -526,14 +526,14 @@ func TestInsertsCreditsDebitsRollbacks(t *testing.T) {
 				t.Fatalf("%s: got error: %v", test.name, err)
 			}
 			s = tmpStore
-			bal, err := s.Balance(ns, 1, TstRecvCurrentHeight)
+			bal, _, err := s.Balance(ns, 1, TstRecvCurrentHeight)
 			if err != nil {
 				t.Fatalf("%s: Confirmed Balance failed: %v", test.name, err)
 			}
 			if bal != test.bal {
 				t.Fatalf("%s: balance mismatch: expected: %d, got: %d", test.name, test.bal, bal)
 			}
-			unc, err := s.Balance(ns, 0, TstRecvCurrentHeight)
+			unc, _, err := s.Balance(ns, 0, TstRecvCurrentHeight)
 			if err != nil {
 				t.Fatalf("%s: Unconfirmed Balance failed: %v", test.name, err)
 			}
@@ -626,7 +626,7 @@ func TestFindingSpentCredits(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bal, err := s.Balance(ns, 1, TstSignedTxBlockDetails.Height)
+	bal, _, err := s.Balance(ns, 1, TstSignedTxBlockDetails.Height)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -809,7 +809,7 @@ func TestCoinbases(t *testing.T) {
 		},
 	}
 	for i, tst := range balTests {
-		bal, err := s.Balance(ns, tst.minConf, tst.height)
+		bal, _,  err := s.Balance(ns, tst.minConf, tst.height)
 		if err != nil {
 			t.Fatalf("Balance test %d: Store.Balance failed: %v", i, err)
 		}
@@ -890,7 +890,7 @@ func TestCoinbases(t *testing.T) {
 	}
 	balTestsBeforeMaturity := balTests
 	for i, tst := range balTests {
-		bal, err := s.Balance(ns, tst.minConf, tst.height)
+		bal, _,  err := s.Balance(ns, tst.minConf, tst.height)
 		if err != nil {
 			t.Fatalf("Balance test %d: Store.Balance failed: %v", i, err)
 		}
@@ -973,7 +973,7 @@ func TestCoinbases(t *testing.T) {
 		},
 	}
 	for i, tst := range balTests {
-		bal, err := s.Balance(ns, tst.minConf, tst.height)
+		bal, _, err := s.Balance(ns, tst.minConf, tst.height)
 		if err != nil {
 			t.Fatalf("Balance test %d: Store.Balance failed: %v", i, err)
 		}
@@ -1006,7 +1006,7 @@ func TestCoinbases(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, tst := range balTests {
-		bal, err := s.Balance(ns, tst.minConf, tst.height)
+		bal, _, err := s.Balance(ns, tst.minConf, tst.height)
 		if err != nil {
 			t.Fatalf("Balance test %d: Store.Balance failed: %v", i, err)
 		}
@@ -1026,7 +1026,7 @@ func TestCoinbases(t *testing.T) {
 	}
 	balTests = balTestsBeforeMaturity
 	for i, tst := range balTests {
-		bal, err := s.Balance(ns, tst.minConf, tst.height)
+		bal, _, err := s.Balance(ns, tst.minConf, tst.height)
 		if err != nil {
 			t.Fatalf("Balance test %d: Store.Balance failed: %v", i, err)
 		}
@@ -1072,7 +1072,7 @@ func TestCoinbases(t *testing.T) {
 		},
 	}
 	for i, tst := range balTests {
-		bal, err := s.Balance(ns, tst.minConf, tst.height)
+		bal, _, err := s.Balance(ns, tst.minConf, tst.height)
 		if err != nil {
 			t.Fatalf("Balance test %d: Store.Balance failed: %v", i, err)
 		}
@@ -1247,7 +1247,7 @@ func TestMoveMultipleToSameBlock(t *testing.T) {
 		},
 	}
 	for i, tst := range balTests {
-		bal, err := s.Balance(ns, tst.minConf, tst.height)
+		bal, _, err := s.Balance(ns, tst.minConf, tst.height)
 		if err != nil {
 			t.Fatalf("Balance test %d: Store.Balance failed: %v", i, err)
 		}
@@ -1392,7 +1392,7 @@ func TestRemoveUnminedTx(t *testing.T) {
 		commitDBTx(t, store, db, func(ns walletdb.ReadWriteBucket) {
 			t.Helper()
 
-			b, err := store.Balance(ns, minConfs, maturityHeight)
+			b, _, err := store.Balance(ns, minConfs, maturityHeight)
 			if err != nil {
 				t.Fatalf("unable to retrieve balance: %v", err)
 			}
@@ -2389,7 +2389,7 @@ func assertBalance(t *testing.T, s *Store, ns walletdb.ReadWriteBucket,
 	if confirmed {
 		minConf = 1
 	}
-	balance, err := s.Balance(ns, minConf, blockHeight)
+	balance, _, err := s.Balance(ns, minConf, blockHeight)
 	if err != nil {
 		t.Fatal(err)
 	}

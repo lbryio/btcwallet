@@ -203,6 +203,7 @@ message FundTransactionRequest {
 	int32 required_confirmations = 3;
 	bool include_immature_coinbases = 4;
 	bool include_change_script = 5;
+	bool include_stakes = 6;
 }
 message FundTransactionResponse {
 	message PreviousOutput {

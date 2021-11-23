@@ -306,6 +306,7 @@ func (s *walletServer) FundTransaction(ctx context.Context, req *pb.FundTransact
 	policy := wallet.OutputSelectionPolicy{
 		Account:               req.Account,
 		RequiredConfirmations: req.RequiredConfirmations,
+		IncludeStakes:         req.IncludeStakes,
 	}
 	unspentOutputs, err := s.wallet.UnspentOutputs(policy)
 	if err != nil {

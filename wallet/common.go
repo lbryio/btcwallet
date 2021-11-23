@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/lbryio/lbcd/chaincfg/chainhash"
+	"github.com/lbryio/lbcd/txscript"
 	"github.com/lbryio/lbcd/wire"
 	btcutil "github.com/lbryio/lbcutil"
 )
@@ -41,7 +42,17 @@ type OutputKind byte
 const (
 	OutputKindNormal OutputKind = iota
 	OutputKindCoinbase
+	OutputKindStake
 )
+
+func isStake(pkScript []byte) bool {
+	if len(pkScript) > 0 &&
+		(pkScript[0] == txscript.OP_CLAIMNAME || pkScript[0] == txscript.OP_SUPPORTCLAIM ||
+			pkScript[0] == txscript.OP_UPDATECLAIM) {
+		return true
+	}
+	return false
+}
 
 // TransactionOutput describes an output that was or is at least partially
 // controlled by the wallet.  Depending on context, this could refer to an
