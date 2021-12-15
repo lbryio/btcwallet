@@ -27,7 +27,7 @@ const (
 	TxLabelLimit = 500
 
 	ChangeFlag = 2
-	StakeFlag = 4
+	StakeFlag  = 4
 )
 
 var (
@@ -536,7 +536,7 @@ func (s *Store) addCredit(ns walletdb.ReadWriteBucket, rec *TxRecord, block *Blo
 		},
 		block:   block.Block,
 		amount:  txOutAmt,
-		flags:  flags,
+		flags:   flags,
 		spentBy: indexedIncidence{index: ^uint32(0)},
 	}
 	v = valueUnspentCredit(&cred)

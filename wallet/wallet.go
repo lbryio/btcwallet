@@ -2657,7 +2657,7 @@ func (w *Wallet) ListUnspent(minconf, maxconf int32,
 				Confirmations: int64(confs),
 				Spendable:     spendable,
 				// Solvable:   , TODO: make this work
-				IsStake:       isStake(output.PkScript),
+				IsStake: isStake(output.PkScript),
 			}
 
 			// BUG: this should be a JSON array so that all
