@@ -15,11 +15,11 @@ import (
 
 var (
 	// Spends: bogus
-	// Outputs: 10 BTC
+	// Outputs: 10 LBC
 	exampleTxRecordA *TxRecord
 
 	// Spends: A:0
-	// Outputs: 5 BTC, 5 BTC
+	// Outputs: 5 LBC, 5 LBC
 	exampleTxRecordB *TxRecord
 )
 
@@ -61,17 +61,17 @@ func ExampleStore_Balance() {
 		}
 		defer dbtx.Rollback()
 		ns := dbtx.ReadBucket(namespaceKey)
-		zeroConfBal, err := s.Balance(ns, 0, syncHeight)
+		zeroConfBal, _, err := s.Balance(ns, 0, syncHeight)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		oneConfBal, err := s.Balance(ns, 1, syncHeight)
+		oneConfBal, _, err := s.Balance(ns, 1, syncHeight)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		sixConfBal, err := s.Balance(ns, 6, syncHeight)
+		sixConfBal, _, err := s.Balance(ns, 6, syncHeight)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -79,7 +79,7 @@ func ExampleStore_Balance() {
 		fmt.Printf("%v, %v, %v\n", zeroConfBal, oneConfBal, sixConfBal)
 	}
 
-	// Insert a transaction which outputs 10 BTC unmined and mark the output
+	// Insert a transaction which outputs 10 LBC unmined and mark the output
 	// as a credit.
 	err = walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(namespaceKey)
@@ -109,9 +109,9 @@ func ExampleStore_Balance() {
 	printBalances(105)
 
 	// Output:
-	// 10 BTC, 0 BTC, 0 BTC
-	// 10 BTC, 10 BTC, 0 BTC
-	// 10 BTC, 10 BTC, 10 BTC
+	// 10 LBC, 0 LBC, 0 LBC
+	// 10 LBC, 10 LBC, 0 LBC
+	// 10 LBC, 10 LBC, 10 LBC
 }
 
 func ExampleStore_Rollback() {
@@ -125,7 +125,7 @@ func ExampleStore_Rollback() {
 	err = walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(namespaceKey)
 
-		// Insert a transaction which outputs 10 BTC in a block at height 100.
+		// Insert a transaction which outputs 10 LBC in a block at height 100.
 		err := s.InsertTx(ns, exampleTxRecordA, &exampleBlock100)
 		if err != nil {
 			return err
@@ -193,7 +193,7 @@ func Example_basicUsage() {
 		return
 	}
 
-	// Insert an unmined transaction that outputs 10 BTC to a wallet address
+	// Insert an unmined transaction that outputs 10 LBC to a wallet address
 	// at output 0.
 	err = s.InsertTx(b, exampleTxRecordA, nil)
 	if err != nil {
@@ -207,7 +207,7 @@ func Example_basicUsage() {
 	}
 
 	// Insert a second transaction which spends the output, and creates two
-	// outputs.  Mark the second one (5 BTC) as wallet change.
+	// outputs.  Mark the second one (5 LBC) as wallet change.
 	err = s.InsertTx(b, exampleTxRecordB, nil)
 	if err != nil {
 		fmt.Println(err)
@@ -232,7 +232,7 @@ func Example_basicUsage() {
 	}
 
 	// Print the one confirmation balance.
-	bal, err := s.Balance(b, 1, 100)
+	bal, _, err := s.Balance(b, 1, 100)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -250,6 +250,6 @@ func Example_basicUsage() {
 	}
 
 	// Output:
-	// 5 BTC
+	// 5 LBC
 	// true
 }
