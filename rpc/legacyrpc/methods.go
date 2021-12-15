@@ -542,7 +542,6 @@ func getAddressInfo(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	// type embeddedAddressInfo struct {
 	// 	# Address             string                `json:"address"`
 	// 	# ScriptPubKey        string                `json:"scriptPubKey"`
-	// 	Solvable            bool                  `json:"solvable"`
 	// 	Descriptor          *string               `json:"desc,omitempty"`
 	// 	IsScript            bool                  `json:"isscript"`
 	// 	IsChange            bool                  `json:"ischange"`
@@ -649,8 +648,7 @@ func getInfo(icmd interface{}, w *wallet.Wallet, chainClient *chain.RPCClient) (
 	// to using the manager version.
 	info.WalletVersion = int32(waddrmgr.LatestMgrVersion)
 	info.Balance = bal.ToBTC()
-	_ = staked // TODO: add this to lbcd:
-	// info.Staked = staked.ToBTC()
+	info.Staked = staked.ToBTC()
 	info.PaytxFee = float64(txrules.DefaultRelayFeePerKb)
 	// We don't set the following since they don't make much sense in the
 	// wallet architecture:

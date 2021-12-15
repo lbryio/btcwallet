@@ -2655,8 +2655,9 @@ func (w *Wallet) ListUnspent(minconf, maxconf int32,
 				ScriptPubKey:  hex.EncodeToString(output.PkScript),
 				Amount:        output.Amount.ToBTC(),
 				Confirmations: int64(confs),
-				Spendable:     spendable, // presently false for stakes
-				// TODO: add an IsStake flag here to lbcd
+				Spendable:     spendable,
+				// Solvable:   , TODO: make this work
+				IsStake:       isStake(output.PkScript),
 			}
 
 			// BUG: this should be a JSON array so that all
