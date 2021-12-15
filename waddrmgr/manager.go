@@ -5,6 +5,7 @@
 package waddrmgr
 
 import (
+	"container/list"
 	"crypto/rand"
 	"crypto/sha512"
 	"fmt"
@@ -17,7 +18,6 @@ import (
 	"github.com/lbryio/lbcwallet/internal/zero"
 	"github.com/lbryio/lbcwallet/snacl"
 	"github.com/lbryio/lbcwallet/walletdb"
-	"github.com/lightninglabs/neutrino/cache/lru"
 )
 
 const (
@@ -608,7 +608,8 @@ func (m *Manager) NewScopedKeyManager(ns walletdb.ReadWriteBucket,
 		rootManager:  m,
 		addrs:        make(map[addrKey]ManagedAddress),
 		acctInfo:     make(map[uint32]*accountInfo),
-		privKeyCache: lru.NewCache(defaultPrivKeyCacheSize),
+		privKeyCache: map[DerivationPath]*list.Element{},
+		privKeyLru:   list.New(),
 	}
 	m.externalAddrSchemas[addrSchema.ExternalAddrType] = append(
 		m.externalAddrSchemas[addrSchema.ExternalAddrType], scope,
@@ -1626,7 +1627,8 @@ func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
 			addrSchema:   *scopeSchema,
 			addrs:        make(map[addrKey]ManagedAddress),
 			acctInfo:     make(map[uint32]*accountInfo),
-			privKeyCache: lru.NewCache(defaultPrivKeyCacheSize),
+			privKeyCache: map[DerivationPath]*list.Element{},
+			privKeyLru:   list.New(),
 		}
 
 		return nil

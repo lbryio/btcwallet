@@ -1,6 +1,7 @@
 package waddrmgr
 
 import (
+	"container/list"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
@@ -15,7 +16,6 @@ import (
 	"github.com/lbryio/lbcwallet/internal/zero"
 	"github.com/lbryio/lbcwallet/netparams"
 	"github.com/lbryio/lbcwallet/walletdb"
-	"github.com/lightninglabs/neutrino/cache/lru"
 )
 
 // HDVersion represents the different supported schemes of hierarchical
@@ -247,7 +247,8 @@ type ScopedKeyManager struct {
 	// privKeyCache stores the set of private keys that have been marked as
 	// items to be cached to allow us to avoid the database and EC
 	// operations each time a key need to be obtained.
-	privKeyCache *lru.Cache
+	privKeyCache map[DerivationPath]*list.Element
+	privKeyLru   *list.List
 
 	mtx sync.RWMutex
 }
@@ -598,7 +599,8 @@ func (s *ScopedKeyManager) AccountProperties(ns walletdb.ReadBucket,
 // to be used frequently. We use this wrapper struct to be able too report the
 // size of a given element to the cache.
 type cachedKey struct {
-	key *btcec.PrivateKey
+	path DerivationPath
+	key  *btcec.PrivateKey
 }
 
 // Size returns the size of this element. Rather than have the cache limit
@@ -624,9 +626,11 @@ func (s *ScopedKeyManager) DeriveFromKeyPathCache(
 
 	// First, try to look up the key itself in the proper cache, if the key
 	// is here, then we don't need to do anything further.
-	privKeyVal, err := s.privKeyCache.Get(kp)
-	if err == nil {
-		return privKeyVal.(*cachedKey).key, nil
+	element := s.privKeyCache[kp]
+	if element != nil {
+		privKeyVal := element.Value.(*cachedKey)
+		s.privKeyLru.MoveToFront(element)
+		return privKeyVal.key, nil
 	}
 
 	// If the key isn't already in the cache, then we'll try to look up the
@@ -657,10 +661,16 @@ func (s *ScopedKeyManager) DeriveFromKeyPathCache(
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.privKeyCache.Put(kp, &cachedKey{key: privKey})
-	if err != nil {
-		return nil, err
+
+	if s.privKeyLru.Len() >= defaultPrivKeyCacheSize {
+		element = s.privKeyLru.Back()
+		delete(s.privKeyCache, element.Value.(*cachedKey).path)
+		element.Value = &cachedKey{key: privKey, path: kp}
+		s.privKeyLru.MoveToFront(element)
+	} else {
+		s.privKeyLru.PushFront(&cachedKey{key: privKey, path: kp})
 	}
+	s.privKeyCache[kp] = element
 
 	return privKey, nil
 }

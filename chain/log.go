@@ -6,7 +6,6 @@ package chain
 
 import (
 	"github.com/btcsuite/btclog"
-	"github.com/lightninglabs/neutrino/query"
 )
 
 // log is a logger that is initialized with no output filters.  This
@@ -30,5 +29,4 @@ func DisableLog() {
 // using btclog.
 func UseLogger(logger btclog.Logger) {
 	log = logger
-	query.UseLogger(logger)
 }
