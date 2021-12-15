@@ -77,7 +77,8 @@ var helpDescsEnUS = map[string]string{
 	"infowalletresult-relayfee":        "The minimum relay fee for non-free transactions in LBC/KB",
 	"infowalletresult-errors":          "Any current errors",
 	"infowalletresult-paytxfee":        "The increment used each time more fee is required for an authored transaction",
-	"infowalletresult-balance":         "The balance of all accounts calculated with one block confirmation",
+	"infowalletresult-balance":         "The non-staked balance of all accounts calculated with one block confirmation",
+	"infowalletresult-staked":          "The staked balance of all accounts calculated with one block confirmation",
 	"infowalletresult-walletversion":   "The version of the address manager database",
 	"infowalletresult-unlocked_until":  "Unset",
 	"infowalletresult-keypoolsize":     "Unset",
@@ -252,7 +253,9 @@ var helpDescsEnUS = map[string]string{
 	"listunspentresult-redeemScript":  "Unset",
 	"listunspentresult-amount":        "The amount of the output valued in bitcoin",
 	"listunspentresult-confirmations": "The number of block confirmations of the transaction",
+	"listunspentresult-solvable":      "Whether the output is solvable",
 	"listunspentresult-spendable":     "Whether the output is entirely controlled by wallet keys/scripts (false for partially controlled multisig outputs or outputs to watch-only addresses)",
+	"listunspentresult-isstake":       "Whether the output is staked",
 
 	// LockUnspentCmd help.
 	"lockunspent--synopsis": "Locks or unlocks an unspent output.\n" +
