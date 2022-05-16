@@ -7,41 +7,42 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/jrick/logrotate v1.0.0
-	github.com/lbryio/lbcd v0.22.100-beta-rc7
+	github.com/lbryio/lbcd v0.22.201-beta-rc3
 	github.com/lbryio/lbcutil v1.0.202-rc3
-	github.com/lightningnetwork/lnd/clock v1.0.1
+	github.com/lightningnetwork/lnd/clock v1.1.0
 	github.com/stretchr/testify v1.7.0
 	go.etcd.io/bbolt v1.3.6
-	golang.org/x/crypto v0.0.0-20211209193657-4570a0811e8b
-	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2
-	google.golang.org/grpc v1.40.0
+	golang.org/x/crypto v0.0.0-20220513210258-46612604a0f9
+	golang.org/x/net v0.0.0-20220513224357-95641704303c
+	google.golang.org/grpc v1.46.2
 )
 
 require (
-	github.com/DataDog/zstd v1.5.0 // indirect
+	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
-	github.com/cockroachdb/errors v1.8.6 // indirect
+	github.com/cockroachdb/errors v1.9.0 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20211118104740-dabe8e521a4f // indirect
-	github.com/cockroachdb/pebble v0.0.0-20211124004043-0dc90bc41e62 // indirect
+	github.com/cockroachdb/pebble v0.0.0-20220513193540-b8c9a560bed5 // indirect
 	github.com/cockroachdb/redact v1.1.3 // indirect
-	github.com/cockroachdb/sentry-go v0.6.1-cockroachdb.2 // indirect
+	github.com/codahale/hdrhistogram v0.9.0 // indirect
+	github.com/getsentry/sentry-go v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/kkdai/bstream v1.0.0 // indirect
-	github.com/klauspost/compress v1.13.6 // indirect
+	github.com/klauspost/compress v1.15.4 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/rogpeppe/go-internal v1.8.0 // indirect
-	golang.org/x/exp v0.0.0-20211123021643-48cbe7f80d7c // indirect
-	golang.org/x/sys v0.0.0-20211123173158-ef496fb156ab // indirect
-	golang.org/x/term v0.0.0-20210916214954-140adaaadfaf // indirect
+	github.com/rogpeppe/go-internal v1.8.1 // indirect
+	golang.org/x/exp v0.0.0-20220428152302-39d4317da171 // indirect
+	golang.org/x/sys v0.0.0-20220513210249-45d2b4557a2a // indirect
+	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
 	golang.org/x/text v0.3.7 // indirect
-	google.golang.org/genproto v0.0.0-20210921142501-181ce0d877f6 // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
+	google.golang.org/genproto v0.0.0-20220505152158-f39f71e6c8f3 // indirect
+	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
 
@@ -51,4 +52,4 @@ require (
 // version.
 replace github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.14.2
 
-go 1.17
+go 1.18
