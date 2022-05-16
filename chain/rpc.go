@@ -46,7 +46,7 @@ type RPCClient struct {
 // operate on the same bitcoin network as described by the passed chain
 // parameters, the connection will be disconnected.
 func NewRPCClient(chainParams *chaincfg.Params, connect, user, pass string, certs []byte,
-	disableTLS bool, reconnectAttempts int) (*RPCClient, error) {
+	disableTLS bool, skipverify bool, reconnectAttempts int) (*RPCClient, error) {
 
 	if reconnectAttempts < 0 {
 		return nil, errors.New("reconnectAttempts must be positive")
@@ -62,6 +62,7 @@ func NewRPCClient(chainParams *chaincfg.Params, connect, user, pass string, cert
 			DisableAutoReconnect: false,
 			DisableConnectOnNew:  true,
 			DisableTLS:           disableTLS,
+			SkipVerify:           skipverify,
 		},
 		chainParams:         chainParams,
 		reconnectAttempts:   reconnectAttempts,

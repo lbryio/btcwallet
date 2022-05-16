@@ -785,7 +785,7 @@ func (s *loaderServer) StartConsensusRpc(ctx context.Context, // nolint:golint
 	}
 
 	rpcClient, err := chain.NewRPCClient(s.activeNet.Params, networkAddress, req.Username,
-		string(req.Password), req.Certificate, len(req.Certificate) == 0, 1)
+		string(req.Password), req.Certificate, len(req.Certificate) == 0, req.SkipVerify, 1)
 	if err != nil {
 		return nil, translateError(err)
 	}

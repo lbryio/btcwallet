@@ -70,6 +70,7 @@ type config struct {
 	RPCConnect       string                  `short:"c" long:"rpcconnect" description:"Hostname/IP and port of lbcd RPC server to connect to (default localhost:9245, testnet: localhost:19245, regtest: localhost:29245 simnet: localhost:39245)"`
 	CAFile           *cfgutil.ExplicitString `long:"cafile" description:"File containing root certificates to authenticate a TLS connections with lbcd"`
 	DisableClientTLS bool                    `long:"noclienttls" description:"Disable TLS for the RPC client -- NOTE: This is only allowed if the RPC client is connecting to localhost"`
+	SkipVerify       bool                    `long:"skipverify" description:"Skip verifying TLS for the RPC client"`
 	LbcdUsername     string                  `long:"lbcdusername" description:"Username for lbcd authentication"`
 	LbcdPassword     string                  `long:"lbcdpassword" default-mask:"-" description:"Password for lbcd authentication"`
 	Proxy            string                  `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`

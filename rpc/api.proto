@@ -314,5 +314,6 @@ message StartConsensusRpcRequest {
 	string username = 2;
 	bytes password = 3;
 	bytes certificate = 4;
+	bool skipverify = 5;
 }
 message StartConsensusRpcResponse {}
