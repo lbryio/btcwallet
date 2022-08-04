@@ -26,7 +26,7 @@ const (
 	// exceed the hardened child range of extended keys and it provides a
 	// reserved account at the top of the range for supporting imported
 	// addresses.
-	MaxAccountNum = hdkeychain.HardenedKeyStart - 2 // 2^31 - 2
+	MaxAccountNum = hdkeychain.HardenedKeyStart - 3 // 2^31 - 3
 
 	// MaxAddressesPerAccount is the maximum allowed number of addresses
 	// per account number.  This value is based on the limitation of the
@@ -37,10 +37,20 @@ const (
 	// addresses.  This is useful since normal accounts are derived from
 	// the root hierarchical deterministic key and imported addresses do
 	// not fit into that model.
-	ImportedAddrAccount = MaxAccountNum + 1 // 2^31 - 1
+	ImportedAddrAccount = hdkeychain.HardenedKeyStart - 1 // 2^31 - 1
 
 	// ImportedAddrAccountName is the name of the imported account.
 	ImportedAddrAccountName = "imported"
+
+	// ImportedWatchonlyAddrAccount is the account number to use for all
+	// imported watchonly addresses, such as public keys and addresses.
+	// This is useful since normal accounts are derived from the root
+	// hierarchical deterministic key and imported addresses do not fit
+	// into that model.
+	ImportedWatchonlyAddrAccount = hdkeychain.HardenedKeyStart - 2 // 2^31 - 2
+
+	// ImportedWatchonlyAddrAccountName is the name of the imported watchonly account.
+	ImportedWatchonlyAddrAccountName = "imported-watchonly"
 
 	// DefaultAccountNum is the number of the default account.
 	DefaultAccountNum = 0
@@ -415,10 +425,10 @@ func (m *Manager) IsWatchOnlyAccount(ns walletdb.ReadBucket, keyScope KeyScope,
 		return true, nil
 	}
 
-	// Assume the default imported account has no private keys.
-	//
-	// TODO: Actually check whether it does.
 	if account == ImportedAddrAccount {
+		return false, nil
+	}
+	if account == ImportedWatchonlyAddrAccount {
 		return true, nil
 	}
 
