@@ -5,9 +5,11 @@
 Package walletrpc is a generated protocol buffer package.
 
 It is generated from these files:
+
 	api.proto
 
 It has these top-level messages:
+
 	VersionRequest
 	VersionResponse
 	TransactionDetails

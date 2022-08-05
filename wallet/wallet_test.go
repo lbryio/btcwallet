@@ -17,7 +17,7 @@ var (
 )
 
 // TestLocateBirthdayBlock ensures we can properly map a block in the chain to a
-//timestamp.
+// timestamp.
 func TestLocateBirthdayBlock(t *testing.T) {
 	t.Parallel()
 
