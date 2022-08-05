@@ -9,8 +9,8 @@ GO_BIN := ${GOPATH}/bin
 LINT_BIN := ${GO_BIN}/golangci-lint
 GOACC_BIN := $(GO_BIN)/go-acc
 
-LINT_COMMIT := v1.42.1
-GOACC_COMMIT := v0.2.6
+LINT_COMMIT := v1.48
+GOACC_COMMIT := v0.2.8
 
 DEPGET := go install
 GOBUILD := go build -v

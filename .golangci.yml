@@ -103,7 +103,7 @@ linters:
     # - noctx
     # - nolintlint
     # - prealloc
-    - rowserrcheck
+    # - rowserrcheck # Disabled due to generic, see https://github.com/golangci/golangci-lint/issues/2649
     # - revive
     # - scopelint
     # - staticcheck
