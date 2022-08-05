@@ -5,9 +5,11 @@
 Package walletrpc is a generated protocol buffer package.
 
 It is generated from these files:
+
 	api.proto
 
 It has these top-level messages:
+
 	VersionRequest
 	VersionResponse
 	TransactionDetails
@@ -1435,7 +1437,7 @@ type StartConsensusRpcRequest struct {
 	Username       string `protobuf:"bytes,2,opt,name=username" json:"username,omitempty"`
 	Password       []byte `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
 	Certificate    []byte `protobuf:"bytes,4,opt,name=certificate,proto3" json:"certificate,omitempty"`
-	SkipVerify    bool `protobuf:"varint,5,opt,name=skipverify,proto3" json:"skipverify,omitempty"`
+	SkipVerify     bool   `protobuf:"varint,5,opt,name=skipverify,proto3" json:"skipverify,omitempty"`
 }
 
 func (m *StartConsensusRpcRequest) Reset()                    { *m = StartConsensusRpcRequest{} }

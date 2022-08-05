@@ -25,7 +25,9 @@ func BackEnds() []string {
 }
 
 // Interface allows more than one backing blockchain source, such as a
-//  RPC chain server, or an SPV library, as long as we write a driver for
+//
+//	RPC chain server, or an SPV library, as long as we write a driver for
+//
 // it.
 type Interface interface {
 	Start() error

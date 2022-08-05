@@ -18,7 +18,8 @@ type Params struct {
 }
 
 // MainNetParams contains parameters specific running lbcwallet and
-//  on the main network (wire.MainNet).
+//
+//	on the main network (wire.MainNet).
 var MainNetParams = Params{
 	Params:        &chaincfg.MainNetParams,
 	RPCClientPort: "9245",
@@ -26,7 +27,8 @@ var MainNetParams = Params{
 }
 
 // TestNet3Params contains parameters specific running lbcwallet and
-//  on the test network (version 3) (wire.TestNet3).
+//
+//	on the test network (version 3) (wire.TestNet3).
 var TestNet3Params = Params{
 	Params:        &chaincfg.TestNet3Params,
 	RPCClientPort: "19245",

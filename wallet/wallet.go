@@ -756,13 +756,13 @@ func (w *Wallet) recovery(chainClient chain.Interface,
 // previously used addresses for a particular account derivation path. At a high
 // level, the algorithm works as follows:
 //
-//  1) Ensure internal and external branch horizons are fully expanded.
-//  2) Filter the entire range of blocks, stopping if a non-zero number of
-//       address are contained in a particular block.
-//  3) Record all internal and external addresses found in the block.
-//  4) Record any outpoints found in the block that should be watched for spends
-//  5) Trim the range of blocks up to and including the one reporting the addrs.
-//  6) Repeat from (1) if there are still more blocks in the range.
+//  1. Ensure internal and external branch horizons are fully expanded.
+//  2. Filter the entire range of blocks, stopping if a non-zero number of
+//     address are contained in a particular block.
+//  3. Record all internal and external addresses found in the block.
+//  4. Record any outpoints found in the block that should be watched for spends
+//  5. Trim the range of blocks up to and including the one reporting the addrs.
+//  6. Repeat from (1) if there are still more blocks in the range.
 //
 // TODO(conner): parallelize/pipeline/cache intermediate network requests
 func (w *Wallet) recoverScopedAddresses(
