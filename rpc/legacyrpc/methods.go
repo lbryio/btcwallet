@@ -1867,6 +1867,12 @@ func signRawTransaction(icmd interface{}, w *wallet.Wallet, chainClient *chain.R
 		if err != nil {
 			return nil, err
 		}
+		if result == nil {
+			return nil, &btcjson.RPCError{
+				Code:    btcjson.ErrRPCNoTxInfo,
+				Message: "Input %s not found" + outPoint.String(),
+			}
+		}
 		script, err := hex.DecodeString(result.ScriptPubKey.Hex)
 		if err != nil {
 			return nil, err
