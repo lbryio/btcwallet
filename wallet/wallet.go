@@ -2093,13 +2093,9 @@ func (w *Wallet) ListTransactions(from, count int) ([]btcjson.ListTransactionsRe
 		// include the next count transactions.
 		skipped := 0
 		n := 0
-
 		rangeFn := func(details []wtxmgr.TxDetails) (bool, error) {
-			// Iterate over transactions at this height in reverse order.
-			// This does nothing for unmined transactions, which are
-			// unsorted, but it will process mined transactions in the
-			// reverse order they were marked mined.
-			for i := len(details) - 1; i >= 0; i-- {
+
+			for _, detail := range details {
 				if from > skipped {
 					skipped++
 					continue
@@ -2110,7 +2106,7 @@ func (w *Wallet) ListTransactions(from, count int) ([]btcjson.ListTransactionsRe
 					return true, nil
 				}
 
-				jsonResults := listTransactions(tx, &details[i],
+				jsonResults := listTransactions(tx, &detail,
 					w.Manager, syncBlock.Height, w.chainParams)
 				txList = append(txList, jsonResults...)
 
@@ -2124,8 +2120,10 @@ func (w *Wallet) ListTransactions(from, count int) ([]btcjson.ListTransactionsRe
 
 		// Return newer results first by starting at mempool height and working
 		// down to the genesis block.
-		return w.TxStore.RangeTransactions(txmgrNs, -1, 0, rangeFn)
+		// return w.TxStore.RangeTransactions(txmgrNs, -1, 0, rangeFn)
+		return w.TxStore.RangeTransactions(txmgrNs, 0, -1, rangeFn)
 	})
+
 	return txList, err
 }
 
