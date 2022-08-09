@@ -2120,9 +2120,12 @@ func (w *Wallet) ListTransactions(from, count int) ([]btcjson.ListTransactionsRe
 
 		// Return newer results first by starting at mempool height and working
 		// down to the genesis block.
-		// return w.TxStore.RangeTransactions(txmgrNs, -1, 0, rangeFn)
-		return w.TxStore.RangeTransactions(txmgrNs, 0, -1, rangeFn)
+		return w.TxStore.RangeTransactions(txmgrNs, -1, 0, rangeFn)
 	})
+
+	for i, j := 0, len(txList)-1; i < j; i, j = i+1, j-1 {
+		txList[i], txList[j] = txList[j], txList[i]
+	}
 
 	return txList, err
 }
