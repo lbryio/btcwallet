@@ -182,19 +182,21 @@ func createWallet(cfg *config) error {
 	// Ascertain the wallet generation seed.  This will either be an
 	// automatically generated value the user has already confirmed or a
 	// value the user has entered which has already been validated.
-	seed, err := prompt.Seed(reader)
+	seed, bday, err := prompt.Seed(reader)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Creating the wallet...")
-	w, err := loader.CreateNewWallet(pubPass, privPass, seed, time.Now())
+	w, err := loader.CreateNewWallet(pubPass, privPass, seed, bday)
 	if err != nil {
 		return err
 	}
 
 	w.Manager.Close()
-	fmt.Println("The wallet has been created successfully.")
+
+	fmt.Println("The wallet has been created successfully with birthday:", bday.Format(time.UnixDate))
+
 	return nil
 }
 

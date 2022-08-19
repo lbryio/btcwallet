@@ -13,7 +13,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lbryio/lbcutil/hdkeychain"
 	"github.com/lbryio/lbcwallet/internal/legacy/keystore"
@@ -120,6 +122,32 @@ func promptListBool(reader *bufio.Reader, prefix string,
 	return response == "yes" || response == "y", nil
 }
 
+// promptBirhdayUnixTimeStamp prompts the user a Unix timestamp in second.
+func promptUnixTimestamp(reader *bufio.Reader, prefix string,
+	defaultEntry string) (time.Time, error) { // nolint:unparam
+
+	prompt := fmt.Sprintf("%s [%s]: ", prefix, defaultEntry)
+
+	for {
+		fmt.Print(prompt)
+		reply, err := reader.ReadString('\n')
+		if err != nil {
+			return time.Time{}, err
+		}
+		reply = strings.TrimSpace(strings.ToLower(reply))
+		if reply == "" {
+			reply = defaultEntry
+		}
+		ts, err := strconv.ParseInt(reply, 10, 64)
+		if err != nil {
+			fmt.Print(prompt)
+			continue
+		}
+
+		return time.Unix(ts, 0), nil
+	}
+}
+
 // promptPass prompts the user for a passphrase with the given prefix.  The
 // function will ask the user to confirm the passphrase and will repeat the
 // prompts until they enter a matching response.
@@ -156,6 +184,12 @@ func promptPass(_ *bufio.Reader, prefix string, confirm bool) ([]byte, error) {
 
 		return pass, nil
 	}
+}
+
+func birthday(reader *bufio.Reader) (time.Time, error) {
+	prompt := "Enter the birthday of the seed in Unix timestamp " +
+		"(the walllet will scan the chain from this time)"
+	return promptUnixTimestamp(reader, prompt, "0")
 }
 
 // PrivatePass prompts the user for a private passphrase with varying behavior
@@ -248,34 +282,31 @@ func PublicPass(reader *bufio.Reader, privPass []byte,
 // the user along with prompting them for confirmation.  When the user answers
 // yes, a the user is prompted for it.  All prompts are repeated until the user
 // enters a valid response.
-func Seed(reader *bufio.Reader) ([]byte, error) {
+func Seed(reader *bufio.Reader) ([]byte, time.Time, error) {
+	bday := time.Now()
 	// Ascertain the wallet generation seed.
 	useUserSeed, err := promptListBool(reader, "Do you have an "+
 		"existing wallet seed you want to use?", "no")
 	if err != nil {
-		return nil, err
+		return nil, bday, err
 	}
 	if !useUserSeed {
 		seed, err := hdkeychain.GenerateSeed(hdkeychain.RecommendedSeedLen)
 		if err != nil {
-			return nil, err
+			return nil, bday, err
 		}
 
-		fmt.Println("Your wallet generation seed is:")
-		fmt.Printf("%x\n", seed)
-		fmt.Println("IMPORTANT: Keep the seed in a safe place as you\n" +
-			"will NOT be able to restore your wallet without it.")
-		fmt.Println("Please keep in mind that anyone who has access\n" +
-			"to the seed can also restore your wallet thereby\n" +
-			"giving them access to all your funds, so it is\n" +
-			"imperative that you keep it in a secure location.")
+		fmt.Printf("Your wallet generation seed is: %x\n", seed)
+
+		fmt.Printf("\nIMPORTANT: Keep the seed in a safe place as you " +
+			"will NOT be able to restore your wallet without it.\n\n")
 
 		for {
 			fmt.Print(`Once you have stored the seed in a safe ` +
 				`and secure location, enter "OK" to continue: `)
 			confirmSeed, err := reader.ReadString('\n')
 			if err != nil {
-				return nil, err
+				return nil, bday, err
 			}
 			confirmSeed = strings.TrimSpace(confirmSeed)
 			confirmSeed = strings.Trim(confirmSeed, `"`)
@@ -284,8 +315,18 @@ func Seed(reader *bufio.Reader) ([]byte, error) {
 			}
 		}
 
-		return seed, nil
+		return seed, bday, nil
 	}
 
-	return provideSeed(reader)
+	seed, err := provideSeed(reader)
+	if err != nil {
+		return nil, bday, err
+	}
+
+	bday, err = birthday(reader)
+	if err != nil {
+		return nil, bday, err
+	}
+
+	return seed, bday, nil
 }
