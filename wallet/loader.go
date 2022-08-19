@@ -300,7 +300,7 @@ func (l *Loader) OpenExistingWallet(pubPassphrase []byte, canConsolePrompt bool)
 	var cbs *waddrmgr.OpenCallbacks
 	if canConsolePrompt {
 		cbs = &waddrmgr.OpenCallbacks{
-			ObtainSeed:        prompt.ProvideSeed,
+			ObtainSeed:        prompt.ProvideSeed(),
 			ObtainPrivatePass: prompt.ProvidePrivPassphrase,
 		}
 	} else {

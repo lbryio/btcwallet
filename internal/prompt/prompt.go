@@ -22,8 +22,12 @@ import (
 
 // ProvideSeed is used to prompt for the wallet seed which maybe required during
 // upgrades.
-func ProvideSeed() ([]byte, error) {
-	reader := bufio.NewReader(os.Stdin)
+func ProvideSeed() func() ([]byte, error) {
+	return func() ([]byte, error) {
+		return provideSeed(bufio.NewReader(os.Stdin))
+	}
+}
+func provideSeed(reader *bufio.Reader) ([]byte, error) {
 	for {
 		fmt.Print("Enter existing wallet seed: ")
 		seedStr, err := reader.ReadString('\n')
@@ -229,30 +233,9 @@ func PublicPass(reader *bufio.Reader, privPass []byte,
 			return configPubPassphrase, nil
 		}
 	}
-
-	for {
-		pubPass, err = promptPass(reader, "Enter the public "+
-			"passphrase for your new wallet", true)
-		if err != nil {
-			return nil, err
-		}
-
-		if bytes.Equal(pubPass, privPass) {
-			useSamePass, err := promptListBool(reader,
-				"Are you sure want to use the same passphrase "+
-					"for public and private data?", "no")
-			if err != nil {
-				return nil, err
-			}
-
-			if useSamePass {
-				break
-			}
-
-			continue
-		}
-
-		break
+	pubPass, err = provideSeed(reader)
+	if err != nil {
+		return nil, err
 	}
 
 	fmt.Println("NOTE: Use the --walletpass option to configure your " +
@@ -304,25 +287,5 @@ func Seed(reader *bufio.Reader) ([]byte, error) {
 		return seed, nil
 	}
 
-	for {
-		fmt.Print("Enter existing wallet seed: ")
-		seedStr, err := reader.ReadString('\n')
-		if err != nil {
-			return nil, err
-		}
-		seedStr = strings.TrimSpace(strings.ToLower(seedStr))
-
-		seed, err := hex.DecodeString(seedStr)
-		if err != nil || len(seed) < hdkeychain.MinSeedBytes ||
-			len(seed) > hdkeychain.MaxSeedBytes {
-
-			fmt.Printf("Invalid seed specified.  Must be a "+
-				"hexadecimal value that is at least %d bits and "+
-				"at most %d bits\n", hdkeychain.MinSeedBytes*8,
-				hdkeychain.MaxSeedBytes*8)
-			continue
-		}
-
-		return seed, nil
-	}
+	return provideSeed(reader)
 }
