@@ -1231,16 +1231,40 @@ func help(icmd interface{}, _ *wallet.Wallet, chainClient *chain.RPCClient) (int
 func listAccounts(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	cmd := icmd.(*btcjson.ListAccountsCmd)
 
-	accountBalances := map[string]float64{}
-	results, err := w.AccountBalances(waddrmgr.KeyScopeBIP0044, int32(*cmd.MinConf))
+	accountBalances := map[string]map[string]float64{}
+
+	fn := func(scope waddrmgr.KeyScope) error {
+		results, err := w.AccountBalances(scope, int32(*cmd.MinConf))
+		if err != nil {
+			return err
+		}
+
+		for _, result := range results {
+			if accountBalances[result.AccountName] == nil {
+				accountBalances[result.AccountName] = map[string]float64{}
+			}
+			accountBalances[result.AccountName][scope.String()] += result.AccountBalance.ToBTC()
+			accountBalances[result.AccountName]["total"] += result.AccountBalance.ToBTC()
+		}
+		return nil
+	}
+
+	scope, err := lookupKeyScope(cmd.AddressType)
 	if err != nil {
 		return nil, err
 	}
-	for _, result := range results {
-		accountBalances[result.AccountName] = result.AccountBalance.ToBTC()
+
+	if scope != nil {
+		err = fn(*scope)
+	} else {
+		err = forEachKeyScope(fn)
 	}
+	if err != nil {
+		return nil, err
+	}
+
 	// Return the map.  This will be marshaled into a JSON object.
-	return accountBalances, nil
+	return accountBalances, err
 }
 
 // listLockUnspent handles a listlockunspent request by returning an slice of
