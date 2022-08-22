@@ -730,14 +730,11 @@ func getAccountAddress(icmd interface{}, w *wallet.Wallet) (interface{}, error) 
 func getUnconfirmedBalance(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	cmd := icmd.(*btcjson.GetUnconfirmedBalanceCmd)
 
-	acctName := defaultAccountName
-	if cmd.Account != nil {
-		acctName = *cmd.Account
-	}
-	account, err := w.AccountNumber(waddrmgr.KeyScopeBIP0044, acctName)
+	account, err := w.AccountNumber(*cmd.Account)
 	if err != nil {
 		return nil, err
 	}
+
 	bals, err := w.CalculateAccountBalances(account, 1)
 	if err != nil {
 		return nil, err
