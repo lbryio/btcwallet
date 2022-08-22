@@ -2110,3 +2110,17 @@ func decodeHexStr(hexStr string) ([]byte, error) {
 	}
 	return decoded, nil
 }
+
+// forEachKeyScope calls the given function with each default key scopes
+// breaking early on error.
+func forEachKeyScope(fn func(scope waddrmgr.KeyScope) error) error {
+
+	for _, scope := range waddrmgr.DefaultKeyScopes {
+		err := fn(scope)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
