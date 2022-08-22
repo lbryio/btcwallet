@@ -168,6 +168,9 @@ var (
 		Coin:    140,
 	}
 
+	// Set Default Scope to BIP0044 (legacy address type).
+	DefaultKeyScope = KeyScopeBIP0044
+
 	// DefaultKeyScopes is the set of default key scopes that will be
 	// created by the root manager upon initial creation.
 	DefaultKeyScopes = []KeyScope{
