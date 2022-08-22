@@ -828,19 +828,21 @@ func renameAccount(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	return nil, w.RenameAccount(waddrmgr.KeyScopeBIP0044, account, cmd.NewAccount)
 }
 
-func lookupKeyScope(kind *string) (waddrmgr.KeyScope, error) {
+func lookupKeyScope(kind *string) (*waddrmgr.KeyScope, error) {
 	if kind == nil {
-		return waddrmgr.KeyScopeBIP0044, nil
+		return nil, nil
 	}
 	switch strings.ToLower(*kind) {
-	case "legacy", "p2pkh": // could add "default" but it might be confused with the 1st parameter
-		return waddrmgr.KeyScopeBIP0044, nil
-	case "p2sh-p2wpkh", "p2sh-p2wkh", "p2sh-segwit":
-		return waddrmgr.KeyScopeBIP0049Plus, nil
-	case "p2wpkh", "p2wkh", "bech32":
-		return waddrmgr.KeyScopeBIP0084, nil
+	case "*":
+		return nil, nil
+	case "legacy":
+		return &waddrmgr.KeyScopeBIP0044, nil
+	case "p2sh-segwit":
+		return &waddrmgr.KeyScopeBIP0049Plus, nil
+	case "bech32":
+		return &waddrmgr.KeyScopeBIP0084, nil
 	}
-	return waddrmgr.KeyScopeBIP0044, fmt.Errorf("unrecognized address type: %s", *kind)
+	return &waddrmgr.KeyScopeBIP0044, fmt.Errorf("unrecognized address type: %s. Must be legacy, p2sh-segwit, or bech32", *kind)
 }
 
 // getNewAddress handles a getnewaddress request by returning a new
@@ -861,12 +863,12 @@ func getNewAddress(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 		return nil, err
 	}
 
-	account, err := w.AccountNumber(keyScope, acctName)
+	account, err := w.AccountNumber(*keyScope, acctName)
 	if err != nil {
 		return nil, err
 	}
 
-	addr, err := w.NewAddress(account, keyScope)
+	addr, err := w.NewAddress(account, *keyScope)
 	if err != nil {
 		return nil, err
 	}
