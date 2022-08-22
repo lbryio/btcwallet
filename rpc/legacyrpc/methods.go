@@ -820,6 +820,7 @@ func createNewAccount(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 // renameAccount handles a renameaccount request by renaming an account.
 // If the account does not exist an appropriate error will be returned.
 func renameAccount(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
+
 	cmd := icmd.(*btcjson.RenameAccountCmd)
 
 	// The wildcard * is reserved by the rpc server with the special meaning
@@ -829,11 +830,18 @@ func renameAccount(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	}
 
 	// Check that given account exists
-	account, err := w.AccountNumber(waddrmgr.KeyScopeBIP0044, cmd.OldAccount)
+	account, err := w.AccountNumber(cmd.OldAccount)
 	if err != nil {
 		return nil, err
 	}
-	return nil, w.RenameAccount(waddrmgr.KeyScopeBIP0044, account, cmd.NewAccount)
+
+	// Interate over all key scopes and rename the account.
+	fn := func(scope waddrmgr.KeyScope) error {
+		return w.RenameAccount(scope, account, cmd.NewAccount)
+	}
+	err = forEachKeyScope(fn)
+
+	return nil, err
 }
 
 func lookupKeyScope(kind *string) (*waddrmgr.KeyScope, error) {
