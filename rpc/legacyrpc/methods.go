@@ -1603,7 +1603,9 @@ func isNilOrEmpty(s *string) bool {
 // address.  Leftover inputs not sent to the payment address or a fee for
 // the miner are sent back to a new address in the wallet.  Upon success,
 // the TxID for the created transaction is returned.
-func sendFrom(icmd interface{}, w *wallet.Wallet, chainClient *chain.RPCClient) (interface{}, error) {
+func sendFrom(icmd interface{}, w *wallet.Wallet,
+	chainClient *chain.RPCClient) (interface{}, error) {
+
 	cmd := icmd.(*btcjson.SendFromCmd)
 
 	// Transaction comments are not yet supported.  Error instead of
@@ -1615,9 +1617,7 @@ func sendFrom(icmd interface{}, w *wallet.Wallet, chainClient *chain.RPCClient) 
 		}
 	}
 
-	account, err := w.AccountNumber(
-		waddrmgr.KeyScopeBIP0044, cmd.FromAccount,
-	)
+	account, err := w.AccountNumber(cmd.FromAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -1630,6 +1630,7 @@ func sendFrom(icmd interface{}, w *wallet.Wallet, chainClient *chain.RPCClient) 
 	if minConf < 0 {
 		return nil, ErrNeedPositiveMinconf
 	}
+
 	// Create map of address and amount pairs.
 	amt, err := btcutil.NewAmount(cmd.Amount)
 	if err != nil {
@@ -1639,7 +1640,13 @@ func sendFrom(icmd interface{}, w *wallet.Wallet, chainClient *chain.RPCClient) 
 		cmd.ToAddress: amt,
 	}
 
-	return sendPairs(w, pairs, waddrmgr.KeyScopeBIP0044, account, minConf,
+	// Use specified scope, if provided.
+	scope, err := lookupKeyScope(cmd.AddressType)
+	if err != nil {
+		return nil, err
+	}
+
+	return sendPairs(w, pairs, scope, account, minConf,
 		txrules.DefaultRelayFeePerKb)
 }
 
