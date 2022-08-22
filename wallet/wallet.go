@@ -1689,7 +1689,12 @@ func (w *Wallet) AddressInfo(a btcutil.Address) (waddrmgr.ManagedAddress, error)
 
 // AccountNumber returns the account number for an account name under a
 // particular key scope.
-func (w *Wallet) AccountNumber(scope waddrmgr.KeyScope, accountName string) (uint32, error) {
+func (w *Wallet) AccountNumber(accountName string) (uint32, error) {
+	// By design, the same account number is shared across all scopes.
+	return w.accountNumber(waddrmgr.DefaultKeyScope, accountName)
+}
+
+func (w *Wallet) accountNumber(scope waddrmgr.KeyScope, accountName string) (uint32, error) {
 	manager, err := w.Manager.FetchScopedKeyManager(scope)
 	if err != nil {
 		return 0, err
@@ -1698,7 +1703,6 @@ func (w *Wallet) AccountNumber(scope waddrmgr.KeyScope, accountName string) (uin
 	var account uint32
 	err = walletdb.View(w.db, func(tx walletdb.ReadTx) error {
 		addrmgrNs := tx.ReadBucket(waddrmgrNamespaceKey)
-		var err error
 		account, err = manager.LookupAccount(addrmgrNs, accountName)
 		return err
 	})
@@ -1706,7 +1710,12 @@ func (w *Wallet) AccountNumber(scope waddrmgr.KeyScope, accountName string) (uin
 }
 
 // AccountName returns the name of an account.
-func (w *Wallet) AccountName(scope waddrmgr.KeyScope, accountNumber uint32) (string, error) {
+func (w *Wallet) AccountName(accountNumber uint32) (string, error) {
+	// By design, the same account name is shared across all scopes.
+	return w.accountName(waddrmgr.DefaultKeyScope, accountNumber)
+}
+
+func (w *Wallet) accountName(scope waddrmgr.KeyScope, accountNumber uint32) (string, error) {
 	manager, err := w.Manager.FetchScopedKeyManager(scope)
 	if err != nil {
 		return "", err
@@ -1715,7 +1724,6 @@ func (w *Wallet) AccountName(scope waddrmgr.KeyScope, accountNumber uint32) (str
 	var accountName string
 	err = walletdb.View(w.db, func(tx walletdb.ReadTx) error {
 		addrmgrNs := tx.ReadBucket(waddrmgrNamespaceKey)
-		var err error
 		accountName, err = manager.AccountName(addrmgrNs, accountNumber)
 		return err
 	})
