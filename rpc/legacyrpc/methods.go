@@ -792,6 +792,7 @@ func keypoolRefill(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 // returning a new account. If the last account has no transaction history
 // as per BIP 0044 a new account cannot be created so an error will be returned.
 func createNewAccount(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
+
 	cmd := icmd.(*btcjson.CreateNewAccountCmd)
 
 	// The wildcard * is reserved by the rpc server with the special meaning
@@ -800,7 +801,11 @@ func createNewAccount(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 		return nil, &ErrReservedAccountName
 	}
 
-	_, err := w.NextAccount(waddrmgr.KeyScopeBIP0044, cmd.Account)
+	fn := func(scope waddrmgr.KeyScope) error {
+		_, err := w.NextAccount(scope, cmd.Account)
+		return err
+	}
+	err := forEachKeyScope(fn)
 	if waddrmgr.IsError(err, waddrmgr.ErrLocked) {
 		return nil, &btcjson.RPCError{
 			Code: btcjson.ErrRPCWalletUnlockNeeded,
@@ -808,7 +813,8 @@ func createNewAccount(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 				"Enter the wallet passphrase with walletpassphrase to unlock",
 		}
 	}
-	return nil, err
+
+	return nil, nil
 }
 
 // renameAccount handles a renameaccount request by renaming an account.
