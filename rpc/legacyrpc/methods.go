@@ -582,30 +582,22 @@ func getAddressInfo(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 func getBalance(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	cmd := icmd.(*btcjson.GetBalanceCmd)
 
-	var balance btcutil.Amount
-	var err error
-	accountName := "*"
-	if cmd.Account != nil {
-		accountName = *cmd.Account
+	if *cmd.Account == "*" {
+		balance, _, err := w.CalculateBalance(int32(*cmd.MinConf))
+		if err != nil {
+			return nil, err
+		}
+		return balance.ToBTC(), nil
 	}
-	if accountName == "*" {
-		balance, _, err = w.CalculateBalance(int32(*cmd.MinConf))
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		var account uint32
-		account, err = w.AccountNumber(waddrmgr.KeyScopeBIP0044, accountName)
-		if err != nil {
-			return nil, err
-		}
-		bals, err := w.CalculateAccountBalances(account, int32(*cmd.MinConf))
-		if err != nil {
-			return nil, err
-		}
-		balance = bals.Spendable
+
+	account, err := w.AccountNumber(*cmd.Account)
+	if err != nil {
+		return nil, err
 	}
-	return balance.ToBTC(), nil
+
+	bals, err := w.CalculateAccountBalances(account, int32(*cmd.MinConf))
+
+	return bals.Spendable.ToBTC(), err
 }
 
 // getBestBlock handles a getbestblock request by returning a JSON object
