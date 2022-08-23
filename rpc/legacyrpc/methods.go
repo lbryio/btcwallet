@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lbryio/lbcd/blockchain"
 	"github.com/lbryio/lbcd/btcec"
 	"github.com/lbryio/lbcd/btcjson"
 	"github.com/lbryio/lbcd/chaincfg"
@@ -1011,15 +1012,13 @@ func getTransaction(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 		return nil, err
 	}
 
-	// TODO: Add a "generated" field to this result type.  "generated":true
-	// is only added if the transaction is a coinbase.
 	ret := btcjson.GetTransactionResult{
 		TxID:            cmd.Txid,
 		Hex:             hex.EncodeToString(txBuf.Bytes()),
 		Time:            details.Received.Unix(),
 		TimeReceived:    details.Received.Unix(),
 		WalletConflicts: []string{}, // Not saved
-		//Generated:     blockchain.IsCoinBaseTx(&details.MsgTx),
+		Generated:       blockchain.IsCoinBaseTx(&details.MsgTx),
 	}
 
 	if details.Block.Height != -1 {
@@ -1094,7 +1093,7 @@ func getTransaction(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 			address = addr.EncodeAddress()
 			account, err := w.AccountOfAddress(addr)
 			if err == nil {
-				name, err := w.AccountName(waddrmgr.KeyScopeBIP0044, account)
+				name, err := w.AccountName(account)
 				if err == nil {
 					accountName = name
 				}
