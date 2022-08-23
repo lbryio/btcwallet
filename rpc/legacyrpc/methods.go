@@ -928,27 +928,38 @@ func getRawChangeAddress(icmd interface{}, w *wallet.Wallet) (interface{}, error
 // getReceivedByAccount handles a getreceivedbyaccount request by returning
 // the total amount received by addresses of an account.
 func getReceivedByAccount(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
+
 	cmd := icmd.(*btcjson.GetReceivedByAccountCmd)
 
-	account, err := w.AccountNumber(waddrmgr.KeyScopeBIP0044, cmd.Account)
+	account, err := w.AccountNumber(*cmd.Account)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: This is more inefficient that it could be, but the entire
-	// algorithm is already dominated by reading every transaction in the
-	// wallet's history.
-	results, err := w.TotalReceivedForAccounts(
-		waddrmgr.KeyScopeBIP0044, int32(*cmd.MinConf),
-	)
-	if err != nil {
-		return nil, err
+	totalReceived := 0.0
+
+	var results []wallet.AccountTotalReceivedResult
+
+	fn := func(scope waddrmgr.KeyScope) error {
+
+		results, err = w.TotalReceivedForAccounts(
+			scope, int32(*cmd.MinConf))
+		if err != nil {
+			return err
+		}
+
+		acctIndex := int(account)
+		if account == waddrmgr.ImportedAddrAccount {
+			acctIndex = len(results) - 1
+		}
+
+		totalReceived += results[acctIndex].TotalReceived.ToBTC()
+
+		return nil
 	}
-	acctIndex := int(account)
-	if account == waddrmgr.ImportedAddrAccount {
-		acctIndex = len(results) - 1
-	}
-	return results[acctIndex].TotalReceived.ToBTC(), nil
+	err = forEachKeyScope(fn)
+
+	return totalReceived, err
 }
 
 // getReceivedByAddress handles a getreceivedbyaddress request by returning
