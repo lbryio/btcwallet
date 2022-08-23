@@ -2021,9 +2021,7 @@ func validateAddress(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	// The address lookup was successful which means there is further
 	// information about it available and it is "mine".
 	result.IsMine = true
-	acctName, err := w.AccountName(
-		waddrmgr.KeyScopeBIP0044, ainfo.InternalAccount(),
-	)
+	acctName, err := w.AccountName(ainfo.InternalAccount())
 	if err != nil {
 		return nil, &ErrAccountNameNotFound
 	}
