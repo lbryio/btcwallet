@@ -855,17 +855,17 @@ func getNewAddress(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 		acctName = *cmd.Account
 	}
 
-	keyScope, err := lookupKeyScope(cmd.AddressType)
+	account, err := w.AccountNumber(acctName)
 	if err != nil {
 		return nil, err
 	}
 
-	account, err := w.AccountNumber(*keyScope, acctName)
+	scope, err := lookupKeyScope(cmd.AddressType)
 	if err != nil {
 		return nil, err
 	}
 
-	addr, err := w.NewAddress(account, *keyScope)
+	addr, err := w.NewAddress(account, *scope)
 	if err != nil {
 		return nil, err
 	}
