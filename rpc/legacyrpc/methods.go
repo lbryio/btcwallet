@@ -1535,7 +1535,7 @@ func makeOutputs(pairs map[string]btcutil.Amount, chainParams *chaincfg.Params) 
 // It returns the transaction hash in string format upon success
 // All errors are returned in btcjson.RPCError format
 func sendPairs(w *wallet.Wallet, amounts map[string]btcutil.Amount,
-	keyScope waddrmgr.KeyScope, account uint32, minconf int32,
+	keyScope *waddrmgr.KeyScope, account uint32, minconf int32,
 	feeSatPerKb btcutil.Amount) (string, error) {
 
 	outputs, err := makeOutputs(amounts, w.ChainParams())
@@ -1543,7 +1543,7 @@ func sendPairs(w *wallet.Wallet, amounts map[string]btcutil.Amount,
 		return "", err
 	}
 	tx, err := w.SendOutputs(
-		outputs, &keyScope, account, minconf, feeSatPerKb,
+		outputs, keyScope, account, minconf, feeSatPerKb,
 		wallet.CoinSelectionLargest, "",
 	)
 	if err != nil {
