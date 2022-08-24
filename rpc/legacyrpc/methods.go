@@ -1299,21 +1299,42 @@ func listLockUnspent(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 func listReceivedByAccount(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	cmd := icmd.(*btcjson.ListReceivedByAccountCmd)
 
-	results, err := w.TotalReceivedForAccounts(
-		waddrmgr.KeyScopeBIP0044, int32(*cmd.MinConf),
-	)
+	accounts := map[uint32]*wallet.AccountTotalReceivedResult{}
+	err := forEachKeyScope(func(scope waddrmgr.KeyScope) error {
+		results, err := w.TotalReceivedForAccounts(
+			scope, int32(*cmd.MinConf),
+		)
+		if err != nil {
+			return err
+		}
+		for _, result := range results {
+			account := accounts[result.AccountNumber]
+			if account == nil {
+				dup := result
+				account = &dup
+				accounts[result.AccountNumber] = account
+			}
+			account.TotalReceived += result.TotalReceived
+			if account.LastConfirmation < result.LastConfirmation {
+				account.LastConfirmation = result.LastConfirmation
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	jsonResults := make([]btcjson.ListReceivedByAccountResult, 0, len(results))
-	for _, result := range results {
-		jsonResults = append(jsonResults, btcjson.ListReceivedByAccountResult{
-			Account:       result.AccountName,
-			Amount:        result.TotalReceived.ToBTC(),
-			Confirmations: uint64(result.LastConfirmation),
-		})
+	jsonResults := make([]btcjson.ListReceivedByAccountResult, 0, len(accounts))
+	for _, account := range accounts {
+		jsonResult := btcjson.ListReceivedByAccountResult{
+			Account:       account.AccountName,
+			Amount:        account.TotalReceived.ToBTC(),
+			Confirmations: uint64(account.LastConfirmation),
+		}
+		jsonResults = append(jsonResults, jsonResult)
 	}
+
 	return jsonResults, nil
 }
 
