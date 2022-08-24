@@ -1764,8 +1764,14 @@ func sendToAddress(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 		cmd.Address: amt,
 	}
 
+	// Use specified scope, if provided.
+	scope, err := lookupKeyScope(cmd.AddressType)
+	if err != nil {
+		return nil, err
+	}
+
 	// sendtoaddress always spends from the default account, this matches bitcoind
-	return sendPairs(w, pairs, waddrmgr.KeyScopeBIP0044, waddrmgr.DefaultAccountNum, 1,
+	return sendPairs(w, pairs, scope, waddrmgr.DefaultAccountNum, 1,
 		txrules.DefaultRelayFeePerKb)
 }
 
