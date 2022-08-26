@@ -1526,16 +1526,10 @@ func listAddressTransactions(icmd interface{}, w *wallet.Wallet) (interface{}, e
 // similar to ListTransactions, except it takes only a single optional
 // argument for the account name and replies with all transactions.
 func listAllTransactions(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
+
 	cmd := icmd.(*btcjson.ListAllTransactionsCmd)
 
-	if cmd.Account != nil && *cmd.Account != "*" {
-		return nil, &btcjson.RPCError{
-			Code:    btcjson.ErrRPCInvalidParameter,
-			Message: "Listing all transactions may only be done for all accounts",
-		}
-	}
-
-	return w.ListAllTransactions()
+	return w.ListAllTransactions(*cmd.Account)
 }
 
 // listUnspent handles the listunspent command.
