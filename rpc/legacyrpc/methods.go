@@ -1434,7 +1434,6 @@ func listReceivedByAddress(icmd interface{}, w *wallet.Wallet) (interface{}, err
 			Amount:        addrData.amount.ToBTC(),
 			Confirmations: uint64(addrData.confirmations),
 			TxIDs:         addrData.tx,
-			Account:       addrData.account,
 		}
 		idx++
 	}
