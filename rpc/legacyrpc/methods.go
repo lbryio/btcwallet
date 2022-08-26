@@ -394,16 +394,25 @@ func dumpPrivKey(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 
 // getAddressesByAccount handles a getaddressesbyaccount request by returning
 // all addresses for an account, or an error if the requested account does
-// not exist.
-func getAddressesByAccount(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
+// not exist. If addresstype is also specified, only those address types are
+// returned.
+func getAddressesByAccount(icmd interface{}, w *wallet.Wallet) (
+	interface{}, error) {
+
 	cmd := icmd.(*btcjson.GetAddressesByAccountCmd)
 
-	account, err := w.AccountNumber(waddrmgr.KeyScopeBIP0044, cmd.Account)
+	account, err := w.AccountNumber(*cmd.Account)
 	if err != nil {
 		return nil, err
 	}
 
-	addrs, err := w.AccountAddresses(account)
+	// Use specified scope, if provided.
+	scope, err := lookupKeyScope(cmd.AddressType)
+	if err != nil {
+		return nil, err
+	}
+
+	addrs, err := w.AccountAddresses(account, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -412,6 +421,7 @@ func getAddressesByAccount(icmd interface{}, w *wallet.Wallet) (interface{}, err
 	for i, a := range addrs {
 		addrStrs[i] = a.EncodeAddress()
 	}
+
 	return addrStrs, nil
 }
 
