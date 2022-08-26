@@ -1487,23 +1487,10 @@ func listSinceBlock(icmd interface{}, w *wallet.Wallet, chainClient *chain.RPCCl
 // listTransactions handles a listtransactions request by returning an
 // array of maps with details of sent and recevied wallet transactions.
 func listTransactions(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
+
 	cmd := icmd.(*btcjson.ListTransactionsCmd)
 
-	// TODO: ListTransactions does not currently understand the difference
-	// between transactions pertaining to one account from another.  This
-	// will be resolved when wtxmgr is combined with the waddrmgr namespace.
-
-	if cmd.Account != nil && *cmd.Account != "*" && *cmd.Account != "default" {
-		// For now, don't bother trying to continue if the user
-		// specified an account, since this can't be (easily or
-		// efficiently) calculated.
-		return nil, &btcjson.RPCError{
-			Code:    btcjson.ErrRPCWallet,
-			Message: "Transactions are not yet grouped by account",
-		}
-	}
-
-	return w.ListTransactions(*cmd.From, *cmd.Count)
+	return w.ListTransactions(*cmd.Account, *cmd.From, *cmd.Count)
 }
 
 // listAddressTransactions handles a listaddresstransactions request by

@@ -1916,7 +1916,8 @@ func RecvCategory(details *wtxmgr.TxDetails, syncHeight int32, net *chaincfg.Par
 // for a listtransactions RPC.
 //
 // TODO: This should be moved to the legacyrpc package.
-func listTransactions(tx walletdb.ReadTx, details *wtxmgr.TxDetails, addrMgr *waddrmgr.Manager,
+func listTransactions(accountName string, tx walletdb.ReadTx,
+	details *wtxmgr.TxDetails, addrMgr *waddrmgr.Manager,
 	syncHeight int32, net *chaincfg.Params) []btcjson.ListTransactionsResult {
 
 	addrmgrNs := tx.ReadBucket(waddrmgrNamespaceKey)
@@ -1977,18 +1978,21 @@ outputs:
 		}
 
 		var address string
-		var accountName string
+		var name string
 		_, addrs, _, _ := txscript.ExtractPkScriptAddrs(output.PkScript, net)
 		if len(addrs) == 1 {
 			addr := addrs[0]
 			address = addr.EncodeAddress()
 			mgr, account, err := addrMgr.AddrAccount(addrmgrNs, addrs[0])
 			if err == nil {
-				accountName, err = mgr.AccountName(addrmgrNs, account)
+				name, err = mgr.AccountName(addrmgrNs, account)
 				if err != nil {
-					accountName = ""
+					name = ""
 				}
 			}
+		}
+		if accountName != "*" && accountName != name {
+			continue
 		}
 
 		amountF64 := btcutil.Amount(output.Value).ToBTC()
@@ -1998,7 +2002,7 @@ outputs:
 			//   BlockIndex
 			//
 			// Fields set below:
-			//   Account (only for non-"send" categories)
+			//   Account
 			//   Category
 			//   Amount
 			//   Fee
@@ -2025,13 +2029,14 @@ outputs:
 		// with debits are grouped under the send category.
 
 		if send || spentCredit {
+			result.Account = name
 			result.Category = "send"
 			result.Amount = -amountF64
 			result.Fee = &feeF64
 			results = append(results, result)
 		}
 		if isCredit {
-			result.Account = accountName
+			result.Account = name
 			result.Category = recvCat
 			result.Amount = amountF64
 			result.Fee = nil
@@ -2070,7 +2075,7 @@ func (w *Wallet) ListSinceBlock(start, end, syncHeight int32) ([]btcjson.ListTra
 // ListTransactions returns a slice of objects with details about a recorded
 // transaction.  This is intended to be used for listtransactions RPC
 // replies.
-func (w *Wallet) ListTransactions(from, count int) ([]btcjson.ListTransactionsResult, error) {
+func (w *Wallet) ListTransactions(accountName string, from, count int) ([]btcjson.ListTransactionsResult, error) {
 	txList := []btcjson.ListTransactionsResult{}
 
 	err := walletdb.View(w.db, func(tx walletdb.ReadTx) error {
@@ -2083,7 +2088,6 @@ func (w *Wallet) ListTransactions(from, count int) ([]btcjson.ListTransactionsRe
 		// Need to skip the first from transactions, and after those, only
 		// include the next count transactions.
 		skipped := 0
-		n := 0
 		rangeFn := func(details []wtxmgr.TxDetails) (bool, error) {
 
 			for _, detail := range details {
@@ -2092,18 +2096,16 @@ func (w *Wallet) ListTransactions(from, count int) ([]btcjson.ListTransactionsRe
 					continue
 				}
 
-				n++
-				if n > count {
+				if len(txList) >= count {
+					txList = txList[:count]
 					return true, nil
 				}
 
-				jsonResults := listTransactions(tx, &detail,
-					w.Manager, syncBlock.Height, w.chainParams)
-				txList = append(txList, jsonResults...)
+				jsonResults := listTransactions(accountName,
+					tx, &detail, w.Manager,
+					syncBlock.Height, w.chainParams)
 
-				if len(jsonResults) > 0 {
-					n++
-				}
+				txList = append(txList, jsonResults...)
 			}
 
 			return false, nil
