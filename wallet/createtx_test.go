@@ -83,7 +83,7 @@ func TestTxToOutputsDryRun(t *testing.T) {
 	}
 	change := dryRunTx.Tx.TxOut[dryRunTx.ChangeIndex]
 
-	addresses, err := w.AccountAddresses(0)
+	addresses, err := w.AccountAddresses(0, nil)
 	if err != nil {
 		t.Fatalf("unable to get addresses: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestTxToOutputsDryRun(t *testing.T) {
 	}
 	change2 := dryRunTx2.Tx.TxOut[dryRunTx2.ChangeIndex]
 
-	addresses, err = w.AccountAddresses(0)
+	addresses, err = w.AccountAddresses(0, nil)
 	if err != nil {
 		t.Fatalf("unable to get addresses: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestTxToOutputsDryRun(t *testing.T) {
 	}
 	change3 := tx.Tx.TxOut[tx.ChangeIndex]
 
-	addresses, err = w.AccountAddresses(0)
+	addresses, err = w.AccountAddresses(0, nil)
 	if err != nil {
 		t.Fatalf("unable to get addresses: %v", err)
 	}

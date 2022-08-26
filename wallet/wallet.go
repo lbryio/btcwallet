@@ -1407,13 +1407,32 @@ func (w *Wallet) ChangePassphrases(publicOld, publicNew, privateOld,
 
 // AccountAddresses returns the addresses for every created address for an
 // account.
-func (w *Wallet) AccountAddresses(account uint32) (addrs []btcutil.Address, err error) {
+func (w *Wallet) AccountAddresses(account uint32, scope *waddrmgr.KeyScope) (
+	addrs []btcutil.Address, err error) {
+
+	// By default, append all addresses under this account.
+	fn := func(maddr waddrmgr.ManagedAddress) error {
+		addrs = append(addrs, maddr.Address())
+		return nil
+	}
+
+	// If scope is set, append only those have the address type under
+	// this scope.
+	if scope != nil {
+		addrSchema := waddrmgr.ScopeAddrMap[*scope]
+
+		fn = func(maddr waddrmgr.ManagedAddress) error {
+			if maddr.AddrType() == addrSchema.InternalAddrType ||
+				maddr.AddrType() == addrSchema.ExternalAddrType {
+				addrs = append(addrs, maddr.Address())
+			}
+			return nil
+		}
+	}
+
 	err = walletdb.View(w.db, func(tx walletdb.ReadTx) error {
 		addrmgrNs := tx.ReadBucket(waddrmgrNamespaceKey)
-		return w.Manager.ForEachAccountAddress(addrmgrNs, account, func(maddr waddrmgr.ManagedAddress) error {
-			addrs = append(addrs, maddr.Address())
-			return nil
-		})
+		return w.Manager.ForEachAccountAddress(addrmgrNs, account, fn)
 	})
 	return
 }
