@@ -1501,13 +1501,6 @@ func listTransactions(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 func listAddressTransactions(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	cmd := icmd.(*btcjson.ListAddressTransactionsCmd)
 
-	if cmd.Account != nil && *cmd.Account != "*" {
-		return nil, &btcjson.RPCError{
-			Code:    btcjson.ErrRPCInvalidParameter,
-			Message: "Listing transactions for addresses may only be done for all accounts",
-		}
-	}
-
 	// Decode addresses.
 	hash160Map := make(map[string]struct{})
 	for _, addrStr := range cmd.Addresses {
@@ -1518,7 +1511,7 @@ func listAddressTransactions(icmd interface{}, w *wallet.Wallet) (interface{}, e
 		hash160Map[string(addr.ScriptAddress())] = struct{}{}
 	}
 
-	return w.ListAddressTransactions(hash160Map)
+	return w.ListAddressTransactions(*cmd.Account, hash160Map)
 }
 
 // listAllTransactions handles a listalltransactions request by returning
