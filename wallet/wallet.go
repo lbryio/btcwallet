@@ -2126,7 +2126,7 @@ func (w *Wallet) ListTransactions(accountName string, from, count int) ([]btcjso
 // ListAddressTransactions returns a slice of objects with details about
 // recorded transactions to or from any address belonging to a set.  This is
 // intended to be used for listaddresstransactions RPC replies.
-func (w *Wallet) ListAddressTransactions(pkHashes map[string]struct{}) ([]btcjson.ListTransactionsResult, error) {
+func (w *Wallet) ListAddressTransactions(accountName string, pkHashes map[string]struct{}) ([]btcjson.ListTransactionsResult, error) {
 	txList := []btcjson.ListTransactionsResult{}
 	err := walletdb.View(w.db, func(tx walletdb.ReadTx) error {
 		txmgrNs := tx.ReadBucket(wtxmgrNamespaceKey)
@@ -2155,8 +2155,9 @@ func (w *Wallet) ListAddressTransactions(pkHashes map[string]struct{}) ([]btcjso
 						continue
 					}
 
-					jsonResults := listTransactions(tx, detail,
-						w.Manager, syncBlock.Height, w.chainParams)
+					jsonResults := listTransactions(accountName,
+						tx, detail, w.Manager,
+						syncBlock.Height, w.chainParams)
 					txList = append(txList, jsonResults...)
 					continue loopDetails
 				}
