@@ -2049,7 +2049,7 @@ outputs:
 // ListSinceBlock returns a slice of objects with details about transactions
 // since the given block. If the block is -1 then all transactions are included.
 // This is intended to be used for listsinceblock RPC replies.
-func (w *Wallet) ListSinceBlock(start, end, syncHeight int32) ([]btcjson.ListTransactionsResult, error) {
+func (w *Wallet) ListSinceBlock(accountName string, start, end, syncHeight int32) ([]btcjson.ListTransactionsResult, error) {
 	txList := []btcjson.ListTransactionsResult{}
 	err := walletdb.View(w.db, func(tx walletdb.ReadTx) error {
 		txmgrNs := tx.ReadBucket(wtxmgrNamespaceKey)
@@ -2059,8 +2059,8 @@ func (w *Wallet) ListSinceBlock(start, end, syncHeight int32) ([]btcjson.ListTra
 				detail := detail
 
 				jsonResults := listTransactions(
-					tx, &detail, w.Manager, syncHeight,
-					w.chainParams,
+					accountName, tx, &detail, w.Manager,
+					syncHeight, w.chainParams,
 				)
 				txList = append(txList, jsonResults...)
 			}
