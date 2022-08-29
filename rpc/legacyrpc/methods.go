@@ -1466,7 +1466,7 @@ func listSinceBlock(icmd interface{}, w *wallet.Wallet, chainClient *chain.RPCCl
 		start = int32(block.Height) + 1
 	}
 
-	txInfoList, err := w.ListSinceBlock(start, -1, syncBlock.Height)
+	txInfoList, err := w.ListSinceBlock("*", start, -1, syncBlock.Height)
 	if err != nil {
 		return nil, err
 	}
