@@ -26,7 +26,7 @@ func TestComputeInputScript(t *testing.T) {
 		expectedScriptLen: 0,
 	}, {
 		name:              "BIP049 nested P2WKH",
-		scope:             waddrmgr.KeyScopeBIP0049Plus,
+		scope:             waddrmgr.KeyScopeBIP0049,
 		expectedScriptLen: 23,
 	}}
 

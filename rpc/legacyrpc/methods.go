@@ -838,7 +838,7 @@ func lookupKeyScope(kind *string) (*waddrmgr.KeyScope, error) {
 	case "legacy":
 		return &waddrmgr.KeyScopeBIP0044, nil
 	case "p2sh-segwit":
-		return &waddrmgr.KeyScopeBIP0049Plus, nil
+		return &waddrmgr.KeyScopeBIP0049, nil
 	case "bech32":
 		return &waddrmgr.KeyScopeBIP0084, nil
 	}

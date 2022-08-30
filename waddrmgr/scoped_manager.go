@@ -142,10 +142,9 @@ type ScopeAddrSchema struct {
 }
 
 var (
-	// KeyScopeBIP0049Plus is the key scope of our modified BIP0049
-	// derivation. We say this is BIP0049 "plus", as we'll actually use
-	// p2wkh change all change addresses.
-	KeyScopeBIP0049Plus = KeyScope{
+	// KeyScopeBIP0049 is the key scope for BIP0084 derivation. BIP0049
+	// will be used to derive all nested p2wkh addresses.
+	KeyScopeBIP0049 = KeyScope{
 		Purpose: 49,
 		Coin:    140,
 	}
@@ -168,7 +167,7 @@ var (
 	// DefaultKeyScopes is the set of default key scopes that will be
 	// created by the root manager upon initial creation.
 	DefaultKeyScopes = []KeyScope{
-		KeyScopeBIP0049Plus,
+		KeyScopeBIP0049,
 		KeyScopeBIP0084,
 		KeyScopeBIP0044,
 	}
@@ -177,9 +176,9 @@ var (
 	// address schema for each scope type. This will be consulted during
 	// the initial creation of the root key manager.
 	ScopeAddrMap = map[KeyScope]ScopeAddrSchema{
-		KeyScopeBIP0049Plus: {
+		KeyScopeBIP0049: {
 			ExternalAddrType: NestedWitnessPubKey,
-			InternalAddrType: WitnessPubKey,
+			InternalAddrType: NestedWitnessPubKey,
 		},
 		KeyScopeBIP0084: {
 			ExternalAddrType: WitnessPubKey,
@@ -192,9 +191,7 @@ var (
 	}
 
 	// KeyScopeBIP0049AddrSchema is the address schema for the traditional
-	// BIP-0049 derivation scheme. This exists in order to support importing
-	// accounts from other wallets that don't use our modified BIP-0049
-	// derivation scheme (internal addresses are P2WKH instead of NP2WKH).
+	// BIP-0049 derivation scheme.
 	KeyScopeBIP0049AddrSchema = ScopeAddrSchema{
 		ExternalAddrType: NestedWitnessPubKey,
 		InternalAddrType: NestedWitnessPubKey,
@@ -2425,7 +2422,7 @@ func (s *ScopedKeyManager) cloneKeyWithVersion(key *hdkeychain.ExtendedKey) (
 		switch s.scope {
 		case KeyScopeBIP0044:
 			version = HDVersionMainNetBIP0044
-		case KeyScopeBIP0049Plus:
+		case KeyScopeBIP0049:
 			version = HDVersionMainNetBIP0049
 		case KeyScopeBIP0084:
 			version = HDVersionMainNetBIP0084
@@ -2439,7 +2436,7 @@ func (s *ScopedKeyManager) cloneKeyWithVersion(key *hdkeychain.ExtendedKey) (
 		switch s.scope {
 		case KeyScopeBIP0044:
 			version = HDVersionTestNetBIP0044
-		case KeyScopeBIP0049Plus:
+		case KeyScopeBIP0049:
 			version = HDVersionTestNetBIP0049
 		case KeyScopeBIP0084:
 			version = HDVersionTestNetBIP0084
@@ -2454,7 +2451,7 @@ func (s *ScopedKeyManager) cloneKeyWithVersion(key *hdkeychain.ExtendedKey) (
 		// We use the mainnet versions for simnet keys when the keys
 		// belong to a key scope which simnet doesn't have a defined
 		// version for.
-		case KeyScopeBIP0049Plus:
+		case KeyScopeBIP0049:
 			version = HDVersionMainNetBIP0049
 		case KeyScopeBIP0084:
 			version = HDVersionMainNetBIP0084

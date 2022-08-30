@@ -79,7 +79,7 @@ var (
 			"Y3BZdhdtUcw",
 		accountIndex:       0,
 		addrType:           waddrmgr.NestedWitnessPubKey,
-		expectedScope:      waddrmgr.KeyScopeBIP0049Plus,
+		expectedScope:      waddrmgr.KeyScopeBIP0049,
 		expectedAddr:       "2N5YTxG9XtGXx1YyhZb7N2pwEjoZLLMHGKj",
 		expectedChangeAddr: "2N7wpz5Gy2zEJTvq2MAuU6BCTEBLXNQ8dUw",
 	}, {
@@ -99,7 +99,7 @@ var (
 			"FD2KeY6G9",
 		accountIndex:       9,
 		addrType:           waddrmgr.NestedWitnessPubKey,
-		expectedScope:      waddrmgr.KeyScopeBIP0049Plus,
+		expectedScope:      waddrmgr.KeyScopeBIP0049,
 		expectedAddr:       "2NBCJ9WzGXZqpLpXGq3Hacybj3c4eHRcqgh",
 		expectedChangeAddr: "2N3bankFu6F3ZNU41iVJQqyS9MXqp9dvn1M",
 	}, {
@@ -109,7 +109,7 @@ var (
 			"FD2KeY6G9",
 		accountIndex:       9,
 		addrType:           waddrmgr.WitnessPubKey,
-		expectedScope:      waddrmgr.KeyScopeBIP0049Plus,
+		expectedScope:      waddrmgr.KeyScopeBIP0049,
 		expectedAddr:       "2NBCJ9WzGXZqpLpXGq3Hacybj3c4eHRcqgh",
 		expectedChangeAddr: "tb1qeqn05w2hfq6axpdprhs4y7x65gxkkvfvyxqk4u",
 	}, {

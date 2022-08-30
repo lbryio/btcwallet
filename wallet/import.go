@@ -49,7 +49,7 @@ func keyScopeFromPubKey(pubKey *hdkeychain.ExtendedKey,
 
 		switch *addrType {
 		case waddrmgr.NestedWitnessPubKey:
-			return waddrmgr.KeyScopeBIP0049Plus,
+			return waddrmgr.KeyScopeBIP0049,
 				&waddrmgr.KeyScopeBIP0049AddrSchema, nil
 
 		case waddrmgr.WitnessPubKey:
@@ -74,11 +74,11 @@ func keyScopeFromPubKey(pubKey *hdkeychain.ExtendedKey,
 
 		switch *addrType {
 		case waddrmgr.NestedWitnessPubKey:
-			return waddrmgr.KeyScopeBIP0049Plus,
+			return waddrmgr.KeyScopeBIP0049,
 				&waddrmgr.KeyScopeBIP0049AddrSchema, nil
 
 		case waddrmgr.WitnessPubKey:
-			return waddrmgr.KeyScopeBIP0049Plus, nil, nil
+			return waddrmgr.KeyScopeBIP0049, nil, nil
 
 		default:
 			return waddrmgr.KeyScope{}, nil,
@@ -370,7 +370,7 @@ func (w *Wallet) ImportPublicKey(pubKey *btcec.PublicKey,
 	var keyScope waddrmgr.KeyScope
 	switch addrType {
 	case waddrmgr.NestedWitnessPubKey:
-		keyScope = waddrmgr.KeyScopeBIP0049Plus
+		keyScope = waddrmgr.KeyScopeBIP0049
 	case waddrmgr.WitnessPubKey:
 		keyScope = waddrmgr.KeyScopeBIP0084
 	default:

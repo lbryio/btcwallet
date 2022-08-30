@@ -43,7 +43,7 @@ func TestFundPsbt(t *testing.T) {
 	}
 
 	// Also create a nested P2WKH address we can use to send some coins to.
-	addr, err = w.CurrentAddress(0, waddrmgr.KeyScopeBIP0049Plus)
+	addr, err = w.CurrentAddress(0, waddrmgr.KeyScopeBIP0049)
 	if err != nil {
 		t.Fatalf("unable to get current address: %v", addr)
 	}
@@ -353,7 +353,7 @@ func TestFinalizePsbt(t *testing.T) {
 	}
 
 	// Also create a nested P2WKH address we can send coins to.
-	addr, err = w.CurrentAddress(0, waddrmgr.KeyScopeBIP0049Plus)
+	addr, err = w.CurrentAddress(0, waddrmgr.KeyScopeBIP0049)
 	if err != nil {
 		t.Fatalf("unable to get current address: %v", addr)
 	}

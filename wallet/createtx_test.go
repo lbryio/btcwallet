@@ -38,7 +38,7 @@ func TestTxToOutputsDryRun(t *testing.T) {
 	defer cleanup()
 
 	// Create an address we can use to send some coins to.
-	keyScope := waddrmgr.KeyScopeBIP0049Plus
+	keyScope := waddrmgr.KeyScopeBIP0049
 	addr, err := w.CurrentAddress(0, keyScope)
 	if err != nil {
 		t.Fatalf("unable to get current address: %v", addr)
@@ -230,7 +230,7 @@ func TestTxToOutputsRandom(t *testing.T) {
 	defer cleanup()
 
 	// Create an address we can use to send some coins to.
-	keyScope := waddrmgr.KeyScopeBIP0049Plus
+	keyScope := waddrmgr.KeyScopeBIP0049
 	addr, err := w.CurrentAddress(0, keyScope)
 	if err != nil {
 		t.Fatalf("unable to get current address: %v", addr)

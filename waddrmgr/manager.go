@@ -175,9 +175,7 @@ type accountInfo struct {
 	lastInternalAddr  ManagedAddress
 
 	// addrSchema serves as a way for an account to override its
-	// corresponding address schema with a custom one. For example, this
-	// could be used to import accounts that use the traditional BIP-0049
-	// derivation scheme into our KeyScopeBIP-0049Plus manager.
+	// corresponding address schema with a custom one.
 	addrSchema *ScopeAddrSchema
 
 	// masterKeyFingerprint represents the fingerprint of the root key
