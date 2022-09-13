@@ -430,6 +430,23 @@ func (w *Wallet) syncWithChain(birthdayStamp *waddrmgr.BlockStamp) error {
 	// before catching up with the rescan.
 	rollback := false
 	rollbackStamp := w.Manager.SyncedTo()
+
+	// Handle corner cases where the chain has reorged to a lower height
+	// than the wallet had synced to. This could happen if the chain has
+	// reorged to a shorter chain with difficulty greater than the current.
+	// Most of the time, it's only temporary since the chain will grow
+	// past the previous height anyway. In regtest, however, it burdens
+	// the testing setup without this check.
+	bestBlockHash, bestBlockHeight, err := chainClient.GetBestBlock()
+	if err != nil {
+		return err
+	}
+	if rollbackStamp.Height > bestBlockHeight {
+		rollbackStamp.Hash = *bestBlockHash
+		rollbackStamp.Height = bestBlockHeight
+		rollback = true
+	}
+
 	err = walletdb.Update(w.db, func(tx walletdb.ReadWriteTx) error {
 		addrmgrNs := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 		txmgrNs := tx.ReadWriteBucket(wtxmgrNamespaceKey)
