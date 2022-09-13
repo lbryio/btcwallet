@@ -16,7 +16,7 @@ import (
 const (
 	// defaultBlockInterval is the default time interval between any two
 	// blocks in a mocked chain.
-	defaultBlockInterval = 10 * time.Minute
+	defaultBlockInterval = 150 * time.Second
 )
 
 var (
