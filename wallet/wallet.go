@@ -371,11 +371,10 @@ func (w *Wallet) syncWithChain(birthdayStamp *waddrmgr.BlockStamp) error {
 
 	// If we've yet to find our birthday block, we'll do so now.
 	if birthdayStamp == nil {
-
-		// To be on the safe side, scan 2 days past of the actual
-		// timestamp.
-		bday := w.Manager.Birthday().Add(48 * time.Hour)
-		birthdayStamp, err = locateBirthdayBlock(chainClient, bday)
+		var err error
+		birthdayStamp, err = locateBirthdayBlock(
+			chainClient, w.Manager.Birthday(),
+		)
 		if err != nil {
 			return fmt.Errorf("unable to locate birthday block: %v",
 				err)

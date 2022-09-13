@@ -480,9 +480,7 @@ func birthdaySanityCheck(chainConn chainConn,
 
 	// Otherwise, we'll attempt to locate a better one now that we have
 	// access to the chain.
-	// To be on the safe side, scan 2 days past of the actual timestamp.
-	bday := birthdayTimestamp.Add(48 * time.Hour)
-	newBirthdayBlock, err := locateBirthdayBlock(chainConn, bday)
+	newBirthdayBlock, err := locateBirthdayBlock(chainConn, birthdayTimestamp)
 	if err != nil {
 		return nil, err
 	}
