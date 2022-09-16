@@ -326,14 +326,14 @@ func (w *Wallet) ImportAccountDryRun(name string,
 		// attempt, we'll want to invalidate the cache for it.
 		defer manager.InvalidateAccountCache(accountProps.AccountNumber)
 
-		externalAddrs, err = manager.NextExternalAddresses(
-			ns, accountProps.AccountNumber, numAddrs,
+		externalAddrs, err = manager.NextAddresses(
+			ns, accountProps.AccountNumber, waddrmgr.ExternalBranch, numAddrs,
 		)
 		if err != nil {
 			return err
 		}
-		internalAddrs, err = manager.NextInternalAddresses(
-			ns, accountProps.AccountNumber, numAddrs,
+		internalAddrs, err = manager.NextAddresses(
+			ns, accountProps.AccountNumber, waddrmgr.InternalBranch, numAddrs,
 		)
 		if err != nil {
 			return err

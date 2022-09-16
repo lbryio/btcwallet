@@ -31,26 +31,18 @@ type BlockFilterer struct {
 	// Params specifies the chain params of the current network.
 	Params *chaincfg.Params
 
-	// ExReverseFilter holds a reverse index mapping an external address to
+	// ReverseFilter holds a reverse index mapping an external address to
 	// the scoped index from which it was derived.
-	ExReverseFilter map[string]waddrmgr.ScopedIndex
-
-	// InReverseFilter holds a reverse index mapping an internal address to
-	// the scoped index from which it was derived.
-	InReverseFilter map[string]waddrmgr.ScopedIndex
+	ReverseFilter map[string]waddrmgr.ScopedIndex
 
 	// WathcedOutPoints is a global set of outpoints being tracked by the
 	// wallet. This allows the block filterer to check for spends from an
 	// outpoint we own.
 	WatchedOutPoints map[wire.OutPoint]btcutil.Address
 
-	// FoundExternal is a two-layer map recording the scope and index of
+	// FoundAddresses is a two-layer map recording the scope and index of
 	// external addresses found in a single block.
-	FoundExternal map[waddrmgr.KeyScope]map[uint32]struct{}
-
-	// FoundInternal is a two-layer map recording the scope and index of
-	// internal addresses found in a single block.
-	FoundInternal map[waddrmgr.KeyScope]map[uint32]struct{}
+	FoundAddresses map[waddrmgr.ScopedIndex]struct{}
 
 	// FoundOutPoints is a set of outpoints found in a single block whose
 	// address belongs to the wallet.
@@ -71,31 +63,20 @@ func NewBlockFilterer(params *chaincfg.Params,
 
 	// Construct a reverse index by address string for the requested
 	// external addresses.
-	nExAddrs := len(req.ExternalAddrs)
-	exReverseFilter := make(map[string]waddrmgr.ScopedIndex, nExAddrs)
-	for scopedIndex, addr := range req.ExternalAddrs {
-		exReverseFilter[addr.EncodeAddress()] = scopedIndex
+	nAddrs := len(req.Addresses)
+	reverseFilter := make(map[string]waddrmgr.ScopedIndex, nAddrs)
+	for scopedIndex, addr := range req.Addresses {
+		reverseFilter[addr.EncodeAddress()] = scopedIndex
 	}
 
-	// Construct a reverse index by address string for the requested
-	// internal addresses.
-	nInAddrs := len(req.InternalAddrs)
-	inReverseFilter := make(map[string]waddrmgr.ScopedIndex, nInAddrs)
-	for scopedIndex, addr := range req.InternalAddrs {
-		inReverseFilter[addr.EncodeAddress()] = scopedIndex
-	}
-
-	foundExternal := make(map[waddrmgr.KeyScope]map[uint32]struct{})
-	foundInternal := make(map[waddrmgr.KeyScope]map[uint32]struct{})
+	foundAddresses := make(map[waddrmgr.ScopedIndex]struct{})
 	foundOutPoints := make(map[wire.OutPoint]btcutil.Address)
 
 	return &BlockFilterer{
 		Params:           params,
-		ExReverseFilter:  exReverseFilter,
-		InReverseFilter:  inReverseFilter,
+		ReverseFilter:    reverseFilter,
 		WatchedOutPoints: req.WatchedOutPoints,
-		FoundExternal:    foundExternal,
-		FoundInternal:    foundInternal,
+		FoundAddresses:   foundAddresses,
 		FoundOutPoints:   foundOutPoints,
 	}
 }
@@ -183,12 +164,8 @@ func (bf *BlockFilterer) FilterOutputAddrs(addrs []btcutil.Address) bool {
 	var isRelevant bool
 	for _, addr := range addrs {
 		addrStr := addr.EncodeAddress()
-		if scopedIndex, ok := bf.ExReverseFilter[addrStr]; ok {
-			bf.foundExternal(scopedIndex)
-			isRelevant = true
-		}
-		if scopedIndex, ok := bf.InReverseFilter[addrStr]; ok {
-			bf.foundInternal(scopedIndex)
+		if scopedIndex, ok := bf.ReverseFilter[addrStr]; ok {
+			bf.found(scopedIndex)
 			isRelevant = true
 		}
 	}
@@ -196,22 +173,9 @@ func (bf *BlockFilterer) FilterOutputAddrs(addrs []btcutil.Address) bool {
 	return isRelevant
 }
 
-// foundExternal marks the scoped index as found within the block filterer's
+// found marks the scoped index as found within the block filterer's
 // FoundExternal map. If this the first index found for a particular scope, the
 // scope's second layer map will be initialized before marking the index.
-func (bf *BlockFilterer) foundExternal(scopedIndex waddrmgr.ScopedIndex) {
-	if _, ok := bf.FoundExternal[scopedIndex.Scope]; !ok {
-		bf.FoundExternal[scopedIndex.Scope] = make(map[uint32]struct{})
-	}
-	bf.FoundExternal[scopedIndex.Scope][scopedIndex.Index] = struct{}{}
-}
-
-// foundInternal marks the scoped index as found within the block filterer's
-// FoundInternal map. If this the first index found for a particular scope, the
-// scope's second layer map will be initialized before marking the index.
-func (bf *BlockFilterer) foundInternal(scopedIndex waddrmgr.ScopedIndex) {
-	if _, ok := bf.FoundInternal[scopedIndex.Scope]; !ok {
-		bf.FoundInternal[scopedIndex.Scope] = make(map[uint32]struct{})
-	}
-	bf.FoundInternal[scopedIndex.Scope][scopedIndex.Index] = struct{}{}
+func (bf *BlockFilterer) found(scopedIndex waddrmgr.ScopedIndex) {
+	bf.FoundAddresses[scopedIndex] = struct{}{}
 }

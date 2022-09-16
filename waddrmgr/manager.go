@@ -156,13 +156,8 @@ type accountInfo struct {
 
 	// The external branch is used for all addresses which are intended for
 	// external use.
-	nextExternalIndex uint32
-	lastExternalAddr  ManagedAddress
-
-	// The internal branch is used for all adddresses which are only
-	// intended for internal wallet use such as change addresses.
-	nextInternalIndex uint32
-	lastInternalAddr  ManagedAddress
+	nextIndex [2]uint32
+	lastAddr  [2]ManagedAddress
 
 	// addrSchema serves as a way for an account to override its
 	// corresponding address schema with a custom one.

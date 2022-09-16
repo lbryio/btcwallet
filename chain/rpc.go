@@ -270,12 +270,11 @@ func (c *RPCClient) FilterBlocks(
 		// `BatchIndex` is returned so that the caller can compute the
 		// *next* block from which to begin again.
 		resp := &FilterBlocksResponse{
-			BatchIndex:         uint32(i),
-			BlockMeta:          blk,
-			FoundExternalAddrs: blockFilterer.FoundExternal,
-			FoundInternalAddrs: blockFilterer.FoundInternal,
-			FoundOutPoints:     blockFilterer.FoundOutPoints,
-			RelevantTxns:       blockFilterer.RelevantTxns,
+			BatchIndex:     uint32(i),
+			BlockMeta:      blk,
+			FoundAddresses: blockFilterer.FoundAddresses,
+			FoundOutPoints: blockFilterer.FoundOutPoints,
+			RelevantTxns:   blockFilterer.RelevantTxns,
 		}
 
 		return resp, nil

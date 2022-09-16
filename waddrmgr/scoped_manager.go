@@ -401,11 +401,13 @@ func (s *ScopedKeyManager) loadAccountInfo(ns walletdb.ReadBucket,
 	switch row := rowInterface.(type) {
 	case *dbDefaultAccountRow:
 		acctInfo = &accountInfo{
-			acctName:          row.name,
-			acctType:          row.acctType,
-			acctKeyEncrypted:  row.privKeyEncrypted,
-			nextExternalIndex: row.nextExternalIndex,
-			nextInternalIndex: row.nextInternalIndex,
+			acctName:         row.name,
+			acctType:         row.acctType,
+			acctKeyEncrypted: row.privKeyEncrypted,
+			nextIndex: [2]uint32{
+				row.nextExternalIndex,
+				row.nextInternalIndex,
+			},
 		}
 
 		// Use the crypto public key to decrypt the account public
@@ -437,49 +439,30 @@ func (s *ScopedKeyManager) loadAccountInfo(ns walletdb.ReadBucket,
 		return nil, managerError(ErrDatabase, str, nil)
 	}
 
-	// Derive and cache the managed address for the last external address.
-	branch, index := ExternalBranch, acctInfo.nextExternalIndex
-	if index > 0 {
-		index--
-	}
-	lastExtAddrPath := DerivationPath{
-		InternalAccount:      account,
-		Account:              acctInfo.acctKeyPub.ChildIndex(),
-		Branch:               branch,
-		Index:                index,
-		MasterKeyFingerprint: acctInfo.masterKeyFingerprint,
-	}
-	lastExtKey, err := s.deriveKey(acctInfo, branch, index, hasPrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	lastExtAddr, err := s.keyToManaged(lastExtKey, lastExtAddrPath, acctInfo)
-	if err != nil {
-		return nil, err
-	}
-	acctInfo.lastExternalAddr = lastExtAddr
+	for branch := 0; branch < 2; branch++ {
 
-	// Derive and cache the managed address for the last internal address.
-	branch, index = InternalBranch, acctInfo.nextInternalIndex
-	if index > 0 {
-		index--
+		// Derive and cache the managed address for the last external address.
+		index := acctInfo.nextIndex[branch]
+		if index > 0 {
+			index--
+		}
+		lastAddrPath := DerivationPath{
+			InternalAccount:      account,
+			Account:              acctInfo.acctKeyPub.ChildIndex(),
+			Branch:               uint32(branch),
+			Index:                index,
+			MasterKeyFingerprint: acctInfo.masterKeyFingerprint,
+		}
+		lastKey, err := s.deriveKey(acctInfo, uint32(branch), index, hasPrivateKey)
+		if err != nil {
+			return nil, err
+		}
+		lastAddr, err := s.keyToManaged(lastKey, lastAddrPath, acctInfo)
+		if err != nil {
+			return nil, err
+		}
+		acctInfo.lastAddr[branch] = lastAddr
 	}
-	lastIntAddrPath := DerivationPath{
-		InternalAccount:      account,
-		Account:              acctInfo.acctKeyPub.ChildIndex(),
-		Branch:               branch,
-		Index:                index,
-		MasterKeyFingerprint: acctInfo.masterKeyFingerprint,
-	}
-	lastIntKey, err := s.deriveKey(acctInfo, branch, index, hasPrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	lastIntAddr, err := s.keyToManaged(lastIntKey, lastIntAddrPath, acctInfo)
-	if err != nil {
-		return nil, err
-	}
-	acctInfo.lastInternalAddr = lastIntAddr
 
 	// Add it to the cache and return it when everything is successful.
 	s.acctInfo[account] = acctInfo
@@ -516,8 +499,8 @@ func (s *ScopedKeyManager) AccountProperties(ns walletdb.ReadBucket,
 			return nil, err
 		}
 		props.AccountName = acctInfo.acctName
-		props.ExternalKeyCount = acctInfo.nextExternalIndex
-		props.InternalKeyCount = acctInfo.nextInternalIndex
+		props.ExternalKeyCount = acctInfo.nextIndex[ExternalBranch]
+		props.InternalKeyCount = acctInfo.nextIndex[InternalBranch]
 		props.AccountPubKey = acctInfo.acctKeyPub
 		props.MasterKeyFingerprint = acctInfo.masterKeyFingerprint
 		props.AddrSchema = acctInfo.addrSchema
@@ -938,7 +921,7 @@ func (s *ScopedKeyManager) accountAddrType(acctInfo *accountInfo,
 //
 // This function MUST be called with the manager lock held for writes.
 func (s *ScopedKeyManager) nextAddresses(ns walletdb.ReadWriteBucket,
-	account uint32, numAddresses uint32, internal bool) ([]ManagedAddress, error) {
+	account uint32, branch uint32, numAddresses uint32) ([]ManagedAddress, error) {
 
 	// The next address can only be generated for accounts that have
 	// already been created.
@@ -956,16 +939,12 @@ func (s *ScopedKeyManager) nextAddresses(ns walletdb.ReadWriteBucket,
 
 	// Choose the branch key and index depending on whether or not this is
 	// an internal address.
-	branchNum, nextIndex := ExternalBranch, acctInfo.nextExternalIndex
-	if internal {
-		branchNum = InternalBranch
-		nextIndex = acctInfo.nextInternalIndex
-	}
+	nextIndex := acctInfo.nextIndex[branch]
 
 	// Choose the appropriate type of address to derive since it's possible
 	// for a watch-only account to have a different schema from the
 	// manager's.
-	addrType := s.accountAddrType(acctInfo, internal)
+	addrType := s.accountAddrType(acctInfo, branch == InternalBranch)
 
 	// Ensure the requested number of addresses doesn't exceed the maximum
 	// allowed for this account.
@@ -978,10 +957,9 @@ func (s *ScopedKeyManager) nextAddresses(ns walletdb.ReadWriteBucket,
 	}
 
 	// Derive the appropriate branch key and ensure it is zeroed when done.
-	branchKey, err := acctKey.Derive(branchNum)
+	branchKey, err := acctKey.Derive(branch)
 	if err != nil {
-		str := fmt.Sprintf("failed to derive extended key branch %d",
-			branchNum)
+		str := fmt.Sprintf("failed to derive extended key branch %d", branch)
 		return nil, managerError(ErrKeyChain, str, err)
 	}
 	defer branchKey.Zero() // Ensure branch key is zeroed when done.
@@ -1021,7 +999,7 @@ func (s *ScopedKeyManager) nextAddresses(ns walletdb.ReadWriteBucket,
 		derivationPath := DerivationPath{
 			InternalAccount: account,
 			Account:         acctKey.ChildIndex(),
-			Branch:          branchNum,
+			Branch:          branch,
 			Index:           nextIndex - 1,
 		}
 
@@ -1035,15 +1013,13 @@ func (s *ScopedKeyManager) nextAddresses(ns walletdb.ReadWriteBucket,
 		if err != nil {
 			return nil, err
 		}
-		if internal {
-			addr.internal = true
-		}
+		addr.internal = branch == InternalBranch
 		managedAddr := addr
 		nextKey.Zero()
 
 		info := unlockDeriveInfo{
 			managedAddr: managedAddr,
-			branch:      branchNum,
+			branch:      branch,
 			index:       nextIndex - 1,
 		}
 		addressInfo = append(addressInfo, &info)
@@ -1113,13 +1089,8 @@ func (s *ScopedKeyManager) nextAddresses(ns walletdb.ReadWriteBucket,
 
 		// Set the last address and next address for tracking.
 		ma := addressInfo[len(addressInfo)-1].managedAddr
-		if internal {
-			acctInfo.nextInternalIndex = nextIndex
-			acctInfo.lastInternalAddr = ma
-		} else {
-			acctInfo.nextExternalIndex = nextIndex
-			acctInfo.lastExternalAddr = ma
-		}
+		acctInfo.nextIndex[branch] = nextIndex
+		acctInfo.lastAddr[branch] = ma
 	}
 	ns.Tx().OnCommit(onCommit)
 
@@ -1152,16 +1123,12 @@ func (s *ScopedKeyManager) extendAddresses(ns walletdb.ReadWriteBucket,
 
 	// Choose the branch key and index depending on whether or not this is
 	// an internal address.
-	branchNum, nextIndex := ExternalBranch, acctInfo.nextExternalIndex
-	if internal {
-		branchNum = InternalBranch
-		nextIndex = acctInfo.nextInternalIndex
-	}
+	nextIndex := acctInfo.nextIndex[branch]
 
 	// Choose the appropriate type of address to derive since it's possible
 	// for a watch-only account to have a different schema from the
 	// manager's.
-	addrType := s.accountAddrType(acctInfo, internal)
+	addrType := s.accountAddrType(acctInfo, branch == InternalBranch)
 
 	// If the last index requested is already lower than the next index, we
 	// can return early.
@@ -1179,10 +1146,10 @@ func (s *ScopedKeyManager) extendAddresses(ns walletdb.ReadWriteBucket,
 	}
 
 	// Derive the appropriate branch key and ensure it is zeroed when done.
-	branchKey, err := acctKey.Derive(branchNum)
+	branchKey, err := acctKey.Derive(branch)
 	if err != nil {
 		str := fmt.Sprintf("failed to derive extended key branch %d",
-			branchNum)
+			branch)
 		return managerError(ErrKeyChain, str, err)
 	}
 	defer branchKey.Zero() // Ensure branch key is zeroed when done.
@@ -1224,7 +1191,7 @@ func (s *ScopedKeyManager) extendAddresses(ns walletdb.ReadWriteBucket,
 		derivationPath := DerivationPath{
 			InternalAccount: account,
 			Account:         acctInfo.acctKeyPub.ChildIndex(),
-			Branch:          branchNum,
+			Branch:          branch,
 			Index:           nextIndex - 1,
 		}
 
@@ -1238,15 +1205,13 @@ func (s *ScopedKeyManager) extendAddresses(ns walletdb.ReadWriteBucket,
 		if err != nil {
 			return err
 		}
-		if internal {
-			addr.internal = true
-		}
+		addr.internal = branch == InternalBranch
 		managedAddr := addr
 		nextKey.Zero()
 
 		info := unlockDeriveInfo{
 			managedAddr: managedAddr,
-			branch:      branchNum,
+			branch:      branch,
 			index:       nextIndex - 1,
 		}
 		addressInfo = append(addressInfo, &info)
@@ -1302,21 +1267,16 @@ func (s *ScopedKeyManager) extendAddresses(ns walletdb.ReadWriteBucket,
 
 	// Set the last address and next address for tracking.
 	ma := addressInfo[len(addressInfo)-1].managedAddr
-	if internal {
-		acctInfo.nextInternalIndex = nextIndex
-		acctInfo.lastInternalAddr = ma
-	} else {
-		acctInfo.nextExternalIndex = nextIndex
-		acctInfo.lastExternalAddr = ma
-	}
+	acctInfo.nextIndex[branch] = nextIndex
+	acctInfo.lastAddr[branch] = ma
 
 	return nil
 }
 
-// NextExternalAddresses returns the specified number of next chained addresses
+// NextAddresses returns the specified number of next chained addresses
 // that are intended for external use from the address manager.
-func (s *ScopedKeyManager) NextExternalAddresses(ns walletdb.ReadWriteBucket,
-	account uint32, numAddresses uint32) ([]ManagedAddress, error) {
+func (s *ScopedKeyManager) NextAddresses(ns walletdb.ReadWriteBucket,
+	account uint32, branch uint32, numAddresses uint32) ([]ManagedAddress, error) {
 
 	// Enforce maximum account number.
 	if account > MaxAccountNum {
@@ -1327,32 +1287,15 @@ func (s *ScopedKeyManager) NextExternalAddresses(ns walletdb.ReadWriteBucket,
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	return s.nextAddresses(ns, account, numAddresses, false)
-}
-
-// NextInternalAddresses returns the specified number of next chained addresses
-// that are intended for internal use such as change from the address manager.
-func (s *ScopedKeyManager) NextInternalAddresses(ns walletdb.ReadWriteBucket,
-	account uint32, numAddresses uint32) ([]ManagedAddress, error) {
-
-	// Enforce maximum account number.
-	if account > MaxAccountNum {
-		err := managerError(ErrAccountNumTooHigh, errAcctTooHigh, nil)
-		return nil, err
-	}
-
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	return s.nextAddresses(ns, account, numAddresses, true)
+	return s.nextAddresses(ns, account, branch, numAddresses)
 }
 
 // ExtendExternalAddresses ensures that all valid external keys through
 // lastIndex are derived and stored in the wallet. This is used to ensure that
 // wallet's persistent state catches up to a external child that was found
 // during recovery.
-func (s *ScopedKeyManager) ExtendExternalAddresses(ns walletdb.ReadWriteBucket,
-	account uint32, lastIndex uint32) error {
+func (s *ScopedKeyManager) ExtendAddresses(ns walletdb.ReadWriteBucket,
+	account uint32, branch uint32, lastIndex uint32) error {
 
 	if account > MaxAccountNum {
 		err := managerError(ErrAccountNumTooHigh, errAcctTooHigh, nil)
@@ -1362,28 +1305,10 @@ func (s *ScopedKeyManager) ExtendExternalAddresses(ns walletdb.ReadWriteBucket,
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	return s.extendAddresses(ns, account, lastIndex, false)
+	return s.extendAddresses(ns, account, branch, lastIndex)
 }
 
-// ExtendInternalAddresses ensures that all valid internal keys through
-// lastIndex are derived and stored in the wallet. This is used to ensure that
-// wallet's persistent state catches up to an internal child that was found
-// during recovery.
-func (s *ScopedKeyManager) ExtendInternalAddresses(ns walletdb.ReadWriteBucket,
-	account uint32, lastIndex uint32) error {
-
-	if account > MaxAccountNum {
-		err := managerError(ErrAccountNumTooHigh, errAcctTooHigh, nil)
-		return err
-	}
-
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	return s.extendAddresses(ns, account, lastIndex, true)
-}
-
-// LastExternalAddress returns the most recently requested chained external
+// LastAddress returns the most recently requested chained external
 // address from calling NextExternalAddress for the given account.  The first
 // external address for the account will be returned if none have been
 // previously requested.
@@ -1391,8 +1316,8 @@ func (s *ScopedKeyManager) ExtendInternalAddresses(ns walletdb.ReadWriteBucket,
 // This function will return an error if the provided account number is greater
 // than the MaxAccountNum constant or there is no account information for the
 // passed account.  Any other errors returned are generally unexpected.
-func (s *ScopedKeyManager) LastExternalAddress(ns walletdb.ReadBucket,
-	account uint32) (ManagedAddress, error) {
+func (s *ScopedKeyManager) LastAddress(ns walletdb.ReadBucket,
+	account, branch uint32) (ManagedAddress, error) {
 
 	// Enforce maximum account number.
 	if account > MaxAccountNum {
@@ -1410,45 +1335,11 @@ func (s *ScopedKeyManager) LastExternalAddress(ns walletdb.ReadBucket,
 		return nil, err
 	}
 
-	if acctInfo.nextExternalIndex > 0 {
-		return acctInfo.lastExternalAddr, nil
+	if acctInfo.nextIndex[branch] > 0 {
+		return acctInfo.lastAddr[branch], nil
 	}
 
 	return nil, managerError(ErrAddressNotFound, "no previous external address", nil)
-}
-
-// LastInternalAddress returns the most recently requested chained internal
-// address from calling NextInternalAddress for the given account.  The first
-// internal address for the account will be returned if none have been
-// previously requested.
-//
-// This function will return an error if the provided account number is greater
-// than the MaxAccountNum constant or there is no account information for the
-// passed account.  Any other errors returned are generally unexpected.
-func (s *ScopedKeyManager) LastInternalAddress(ns walletdb.ReadBucket,
-	account uint32) (ManagedAddress, error) {
-
-	// Enforce maximum account number.
-	if account > MaxAccountNum {
-		err := managerError(ErrAccountNumTooHigh, errAcctTooHigh, nil)
-		return nil, err
-	}
-
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	// Load account information for the passed account.  It is typically
-	// cached, but if not it will be loaded from the database.
-	acctInfo, err := s.loadAccountInfo(ns, account)
-	if err != nil {
-		return nil, err
-	}
-
-	if acctInfo.nextInternalIndex > 0 {
-		return acctInfo.lastInternalAddr, nil
-	}
-
-	return nil, managerError(ErrAddressNotFound, "no previous internal address", nil)
 }
 
 // NewRawAccount creates a new account for the scoped manager. This method

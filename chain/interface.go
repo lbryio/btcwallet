@@ -75,8 +75,7 @@ type (
 	// is also included to monitor for spends.
 	FilterBlocksRequest struct {
 		Blocks           []wtxmgr.BlockMeta
-		ExternalAddrs    map[waddrmgr.ScopedIndex]btcutil.Address
-		InternalAddrs    map[waddrmgr.ScopedIndex]btcutil.Address
+		Addresses        map[waddrmgr.ScopedIndex]btcutil.Address
 		WatchedOutPoints map[wire.OutPoint]btcutil.Address
 	}
 
@@ -88,12 +87,11 @@ type (
 	// caller can reinitiate a request for the subsequent block after
 	// updating the addresses of interest.
 	FilterBlocksResponse struct {
-		BatchIndex         uint32
-		BlockMeta          wtxmgr.BlockMeta
-		FoundExternalAddrs map[waddrmgr.KeyScope]map[uint32]struct{}
-		FoundInternalAddrs map[waddrmgr.KeyScope]map[uint32]struct{}
-		FoundOutPoints     map[wire.OutPoint]btcutil.Address
-		RelevantTxns       []*wire.MsgTx
+		BatchIndex     uint32
+		BlockMeta      wtxmgr.BlockMeta
+		FoundAddresses map[waddrmgr.ScopedIndex]struct{}
+		FoundOutPoints map[wire.OutPoint]btcutil.Address
+		RelevantTxns   []*wire.MsgTx
 	}
 
 	// BlockDisconnected is a notifcation that the block described by the

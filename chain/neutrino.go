@@ -12,22 +12,12 @@ func buildFilterBlocksWatchList(req *FilterBlocksRequest) ([][]byte, error) {
 	// Construct a watch list containing the script addresses of all
 	// internal and external addresses that were requested, in addition to
 	// the set of outpoints currently being watched.
-	watchListSize := len(req.ExternalAddrs) +
-		len(req.InternalAddrs) +
+	watchListSize := len(req.Addresses) +
 		len(req.WatchedOutPoints)
 
 	watchList := make([][]byte, 0, watchListSize)
 
-	for _, addr := range req.ExternalAddrs {
-		p2shAddr, err := txscript.PayToAddrScript(addr)
-		if err != nil {
-			return nil, err
-		}
-
-		watchList = append(watchList, p2shAddr)
-	}
-
-	for _, addr := range req.InternalAddrs {
+	for _, addr := range req.Addresses {
 		p2shAddr, err := txscript.PayToAddrScript(addr)
 		if err != nil {
 			return nil, err

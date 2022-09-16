@@ -334,8 +334,8 @@ func testExternalAddresses(tc *testContext) bool {
 		err := walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
 			ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 			var err error
-			addrs, err = tc.manager.NextExternalAddresses(
-				ns, tc.internalAccount, 5,
+			addrs, err = tc.manager.NextAddresses(
+				ns, tc.internalAccount, ExternalBranch, 5,
 			)
 			return err
 		})
@@ -371,8 +371,8 @@ func testExternalAddresses(tc *testContext) bool {
 		err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
 			ns := tx.ReadBucket(waddrmgrNamespaceKey)
 			var err error
-			lastAddr, err = tc.manager.LastExternalAddress(
-				ns, tc.internalAccount,
+			lastAddr, err = tc.manager.LastAddress(
+				ns, tc.internalAccount, ExternalBranch,
 			)
 			return err
 		})
@@ -478,8 +478,8 @@ func testInternalAddresses(tc *testContext) bool {
 		err := walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
 			ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 			var err error
-			addrs, err = tc.manager.NextInternalAddresses(
-				ns, tc.internalAccount, 5,
+			addrs, err = tc.manager.NextAddresses(
+				ns, tc.internalAccount, InternalBranch, 5,
 			)
 			return err
 		})
@@ -515,8 +515,8 @@ func testInternalAddresses(tc *testContext) bool {
 		err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
 			ns := tx.ReadBucket(waddrmgrNamespaceKey)
 			var err error
-			lastAddr, err = tc.manager.LastInternalAddress(
-				ns, tc.internalAccount,
+			lastAddr, err = tc.manager.LastAddress(
+				ns, tc.internalAccount, InternalBranch,
 			)
 			return err
 		})
@@ -2032,8 +2032,8 @@ func TestScopedKeyManagerManagement(t *testing.T) {
 				t.Fatalf("unable to fetch scope %v: %v", scope, err)
 			}
 
-			externalAddr, err := sMgr.NextExternalAddresses(
-				ns, DefaultAccountNum, 1,
+			externalAddr, err := sMgr.NextAddresses(
+				ns, DefaultAccountNum, ExternalBranch, 1,
 			)
 			if err != nil {
 				t.Fatalf("unable to derive external addr: %v", err)
@@ -2047,8 +2047,8 @@ func TestScopedKeyManagerManagement(t *testing.T) {
 					ScopeAddrMap[scope].ExternalAddrType)
 			}
 
-			internalAddr, err := sMgr.NextInternalAddresses(
-				ns, DefaultAccountNum, 1,
+			internalAddr, err := sMgr.NextAddresses(
+				ns, DefaultAccountNum, InternalBranch, 1,
 			)
 			if err != nil {
 				t.Fatalf("unable to derive internal addr: %v", err)
@@ -2106,15 +2106,15 @@ func TestScopedKeyManagerManagement(t *testing.T) {
 
 		// We'll now create a new external address to ensure we
 		// retrieve the proper type.
-		externalAddr, err = scopedMgr.NextExternalAddresses(
-			ns, DefaultAccountNum, 1,
+		externalAddr, err = scopedMgr.NextAddresses(
+			ns, DefaultAccountNum, ExternalBranch, 1,
 		)
 		if err != nil {
 			t.Fatalf("unable to derive external addr: %v", err)
 		}
 
-		internalAddr, err = scopedMgr.NextInternalAddresses(
-			ns, DefaultAccountNum, 1,
+		internalAddr, err = scopedMgr.NextAddresses(
+			ns, DefaultAccountNum, InternalBranch, 1,
 		)
 		if err != nil {
 			t.Fatalf("unable to derive internal addr: %v", err)
@@ -2177,8 +2177,8 @@ func TestScopedKeyManagerManagement(t *testing.T) {
 	err = walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 
-		lastAddr, err = scopedMgr.LastExternalAddress(
-			ns, DefaultAccountNum,
+		lastAddr, err = scopedMgr.LastAddress(
+			ns, DefaultAccountNum, ExternalBranch,
 		)
 		if err != nil {
 			return err
@@ -2384,8 +2384,8 @@ func testNewRawAccount(t *testing.T, _ *Manager, db walletdb.DB,
 	err := walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 
-		addrs, err := scopedMgr.NextExternalAddresses(
-			ns, accountNum, 1,
+		addrs, err := scopedMgr.NextAddresses(
+			ns, accountNum, ExternalBranch, 1,
 		)
 		if err != nil {
 			return err

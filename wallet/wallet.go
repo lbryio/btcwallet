@@ -954,22 +954,12 @@ func expandScopeHorizons(ns walletdb.ReadWriteBucket,
 	return nil
 }
 
-// externalKeyPath returns the relative external derivation path /0/0/index.
-func externalKeyPath(index uint32) waddrmgr.DerivationPath {
+// keyPath returns the relative external derivation path /account/branch/index.
+func keyPath(account, branch, index uint32) waddrmgr.DerivationPath {
 	return waddrmgr.DerivationPath{
-		InternalAccount: waddrmgr.DefaultAccountNum,
-		Account:         waddrmgr.DefaultAccountNum,
-		Branch:          waddrmgr.ExternalBranch,
-		Index:           index,
-	}
-}
-
-// internalKeyPath returns the relative internal derivation path /0/1/index.
-func internalKeyPath(index uint32) waddrmgr.DerivationPath {
-	return waddrmgr.DerivationPath{
-		InternalAccount: waddrmgr.DefaultAccountNum,
-		Account:         waddrmgr.DefaultAccountNum,
-		Branch:          waddrmgr.InternalBranch,
+		InternalAccount: account,
+		Account:         account,
+		Branch:          branch,
 		Index:           index,
 	}
 }
@@ -982,8 +972,7 @@ func newFilterBlocksRequest(batch []wtxmgr.BlockMeta,
 
 	filterReq := &chain.FilterBlocksRequest{
 		Blocks:           batch,
-		ExternalAddrs:    make(map[waddrmgr.ScopedIndex]btcutil.Address),
-		InternalAddrs:    make(map[waddrmgr.ScopedIndex]btcutil.Address),
+		Addresses:        make(map[waddrmgr.ScopedIndex]btcutil.Address),
 		WatchedOutPoints: recoveryState.WatchedOutPoints(),
 	}
 
@@ -1112,23 +1101,12 @@ func logFilterBlocksResp(block wtxmgr.BlockMeta,
 	resp *chain.FilterBlocksResponse) {
 
 	// Log the number of external addresses found in this block.
-	var nFoundExternal int
-	for _, indexes := range resp.FoundExternalAddrs {
-		nFoundExternal += len(indexes)
-	}
-	if nFoundExternal > 0 {
-		log.Infof("Recovered %d external addrs at height=%d hash=%v",
-			nFoundExternal, block.Height, block.Hash)
-	}
+	var nFoundAddresses int
+	nFoundAddresses += len(resp.FoundAddresses)
 
-	// Log the number of internal addresses found in this block.
-	var nFoundInternal int
-	for _, indexes := range resp.FoundInternalAddrs {
-		nFoundInternal += len(indexes)
-	}
-	if nFoundInternal > 0 {
-		log.Infof("Recovered %d internal addrs at height=%d hash=%v",
-			nFoundInternal, block.Height, block.Hash)
+	if nFoundAddresses > 0 {
+		log.Infof("Recovered %d addrs at height=%d hash=%v",
+			nFoundAddresses, block.Height, block.Hash)
 	}
 
 	// Log the number of outpoints found in this block.
@@ -1568,7 +1546,7 @@ func (w *Wallet) CurrentAddress(account uint32, scope waddrmgr.KeyScope) (btcuti
 	)
 	err = walletdb.Update(w.db, func(tx walletdb.ReadWriteTx) error {
 		addrmgrNs := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-		maddr, err := manager.LastExternalAddress(addrmgrNs, account)
+		maddr, err := manager.LastAddress(addrmgrNs, account, waddrmgr.ExternalBranch)
 		if err != nil {
 			// If no address exists yet, create the first external
 			// address.
@@ -2954,7 +2932,7 @@ func (w *Wallet) newAddress(addrmgrNs walletdb.ReadWriteBucket, account uint32,
 	}
 
 	// Get next address from wallet.
-	addrs, err := manager.NextExternalAddresses(addrmgrNs, account, 1)
+	addrs, err := manager.NextAddresses(addrmgrNs, account, waddrmgr.ExternalBranch, 1)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -3012,7 +2990,7 @@ func (w *Wallet) newChangeAddress(addrmgrNs walletdb.ReadWriteBucket,
 	}
 
 	// Get next chained change address from wallet for account.
-	addrs, err := manager.NextInternalAddresses(addrmgrNs, account, 1)
+	addrs, err := manager.NextAddresses(addrmgrNs, account, waddrmgr.InternalBranch, 1)
 	if err != nil {
 		return nil, err
 	}

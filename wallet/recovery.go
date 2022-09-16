@@ -261,11 +261,7 @@ func (rs *RecoveryState) AddWatchedOutPoint(outPoint *wire.OutPoint,
 type ScopeRecoveryState struct {
 	// ExternalBranch is the recovery state of addresses generated for
 	// external use, i.e. receiving addresses.
-	ExternalBranch *BranchRecoveryState
-
-	// InternalBranch is the recovery state of addresses generated for
-	// internal use, i.e. change addresses.
-	InternalBranch *BranchRecoveryState
+	AccountBranches [][2]*BranchRecoveryState
 }
 
 // NewScopeRecoveryState initializes an ScopeRecoveryState with the chosen
