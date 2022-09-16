@@ -1467,7 +1467,7 @@ func deriveCoinTypeKey(masterNode *hdkeychain.ExtendedKey,
 	// The branch is 0 for external addresses and 1 for internal addresses.
 
 	// Derive the purpose key as a child of the master node.
-	purpose, err := masterNode.DeriveNonStandard( // nolint:staticcheck
+	purpose, err := masterNode.Derive(
 		scope.Purpose + hdkeychain.HardenedKeyStart,
 	)
 	if err != nil {
@@ -1475,7 +1475,7 @@ func deriveCoinTypeKey(masterNode *hdkeychain.ExtendedKey,
 	}
 
 	// Derive the coin type key as a child of the purpose key.
-	coinTypeKey, err := purpose.DeriveNonStandard( // nolint:staticcheck
+	coinTypeKey, err := purpose.Derive(
 		scope.Coin + hdkeychain.HardenedKeyStart,
 	)
 	if err != nil {
@@ -1501,7 +1501,7 @@ func deriveAccountKey(coinTypeKey *hdkeychain.ExtendedKey,
 	}
 
 	// Derive the account key as a child of the coin type key.
-	return coinTypeKey.DeriveNonStandard( // nolint:staticcheck
+	return coinTypeKey.Derive(
 		account + hdkeychain.HardenedKeyStart,
 	)
 }
@@ -1519,12 +1519,12 @@ func deriveAccountKey(coinTypeKey *hdkeychain.ExtendedKey,
 // The branch is 0 for external addresses and 1 for internal addresses.
 func checkBranchKeys(acctKey *hdkeychain.ExtendedKey) error {
 	// Derive the external branch as the first child of the account key.
-	if _, err := acctKey.DeriveNonStandard(ExternalBranch); err != nil { // nolint:staticcheck
+	if _, err := acctKey.Derive(ExternalBranch); err != nil {
 		return err
 	}
 
 	// Derive the internal branch as the second child of the account key.
-	_, err := acctKey.DeriveNonStandard(InternalBranch) // nolint:staticcheck
+	_, err := acctKey.Derive(InternalBranch)
 	return err
 }
 
