@@ -26,6 +26,7 @@ import (
 	btcutil "github.com/lbryio/lbcutil"
 	"github.com/lbryio/lbcutil/hdkeychain"
 	"github.com/lbryio/lbcwallet/chain"
+	"github.com/lbryio/lbcwallet/internal/prompt"
 	"github.com/lbryio/lbcwallet/waddrmgr"
 	"github.com/lbryio/lbcwallet/wallet/txauthor"
 	"github.com/lbryio/lbcwallet/wallet/txrules"
@@ -666,16 +667,13 @@ func (w *Wallet) recovery(chainClient chain.Interface,
 		w.recoveryWindow, recoveryBatchSize, w.chainParams,
 	)
 
-	// In the event that this recovery is being resumed, we will need to
-	// repopulate all found addresses from the database. Ideally, for basic
-	// recovery, we would only do so for the default scopes, but due to a
-	// bug in which the wallet would create change addresses outside of the
-	// default scopes, it's necessary to attempt all registered key scopes.
 	scopedMgrs := make(map[waddrmgr.KeyScope]*waddrmgr.ScopedKeyManager)
 	for _, scopedMgr := range w.Manager.ActiveScopedKeyManagers() {
 		scopedMgrs[scopedMgr.Scope()] = scopedMgr
 	}
+
 	err := walletdb.View(w.db, func(tx walletdb.ReadTx) error {
+		var credits []wtxmgr.Credit
 		txMgrNS := tx.ReadBucket(wtxmgrNamespaceKey)
 		credits, err := w.TxStore.UnspentOutputs(txMgrNS)
 		if err != nil {
@@ -704,6 +702,18 @@ func (w *Wallet) recovery(chainClient chain.Interface,
 	// NOTE: We purposefully don't update our best height since we assume
 	// that a wallet rescan will be performed from the wallet's tip, which
 	// will be of bestHeight after completing the recovery process.
+
+	pass, err := prompt.ProvidePrivPassphrase()
+	if err != nil {
+		return err
+	}
+
+	err = w.Unlock(pass, nil)
+	if err != nil {
+		return err
+	}
+	defer w.Lock()
+
 	var blocks []*waddrmgr.BlockStamp
 	startHeight := w.Manager.SyncedTo().Height + 1
 	for height := startHeight; height <= bestHeight; height++ {
@@ -735,35 +745,43 @@ func (w *Wallet) recovery(chainClient chain.Interface,
 		// the recovery batch size, so we can proceed to commit our
 		// state to disk.
 		recoveryBatch := recoveryMgr.BlockBatch()
-		if len(recoveryBatch) == recoveryBatchSize || height == bestHeight {
-			err := walletdb.Update(w.db, func(tx walletdb.ReadWriteTx) error {
-				ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-				for _, block := range blocks {
-					err := w.Manager.SetSyncedTo(ns, block)
-					if err != nil {
-						return err
-					}
-				}
-				return w.recoverScopedAddresses(
-					chainClient, tx, ns, recoveryBatch,
-					recoveryMgr.State(), scopedMgrs,
-				)
-			})
-			if err != nil {
-				return err
-			}
-
-			if len(recoveryBatch) > 0 {
-				log.Infof("Recovered addresses from blocks "+
-					"%d-%d", recoveryBatch[0].Height,
-					recoveryBatch[len(recoveryBatch)-1].Height)
-			}
-
-			// Clear the batch of all processed blocks to reuse the
-			// same memory for future batches.
-			blocks = blocks[:0]
-			recoveryMgr.ResetBlockBatch()
+		if len(recoveryBatch) != recoveryBatchSize && height != bestHeight {
+			continue
 		}
+
+		err = walletdb.Update(w.db, func(tx walletdb.ReadWriteTx) error {
+			ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
+			for _, block := range blocks {
+				err = w.Manager.SetSyncedTo(ns, block)
+				if err != nil {
+					return err
+				}
+			}
+			for scope, scopedMgr := range scopedMgrs {
+				scopeState := recoveryMgr.State().StateForScope(scope)
+				err = expandScopeHorizons(ns, scopedMgr, scopeState)
+				if err != nil {
+					return err
+				}
+			}
+			return w.recoverScopedAddresses(chainClient, tx, ns,
+				recoveryBatch, recoveryMgr.State(), scopedMgrs,
+			)
+		})
+		if err != nil {
+			return err
+		}
+
+		if len(recoveryBatch) > 0 {
+			log.Infof("Recovered addresses from blocks "+
+				"%d-%d", recoveryBatch[0].Height,
+				recoveryBatch[len(recoveryBatch)-1].Height)
+		}
+
+		// Clear the batch of all processed blocks to reuse the
+		// same memory for future batches.
+		blocks = blocks[:0]
+		recoveryMgr.ResetBlockBatch()
 	}
 
 	return nil
@@ -795,16 +813,8 @@ func (w *Wallet) recoverScopedAddresses(
 		return nil
 	}
 
-	log.Infof("Scanning %d blocks for recoverable addresses", len(batch))
-
 expandHorizons:
-	for scope, scopedMgr := range scopedMgrs {
-		scopeState := recoveryState.StateForScope(scope)
-		err := expandScopeHorizons(ns, scopedMgr, scopeState)
-		if err != nil {
-			return err
-		}
-	}
+	log.Infof("Scanning %d blocks for recoverable addresses", len(batch))
 
 	// With the internal and external horizons properly expanded, we now
 	// construct the filter blocks request. The request includes the range
@@ -887,74 +897,55 @@ expandHorizons:
 // persistent state of the wallet. If any invalid child keys are detected, the
 // horizon will be properly extended such that our lookahead always includes the
 // proper number of valid child keys.
-func expandScopeHorizons(ns walletdb.ReadWriteBucket,
+func expandScopeHorizons(
+	ns walletdb.ReadWriteBucket,
 	scopedMgr *waddrmgr.ScopedKeyManager,
-	scopeState *ScopeRecoveryState) error {
+	scopeState ScopeRecoveryState) error {
 
-	// Compute the current external horizon and the number of addresses we
-	// must derive to ensure we maintain a sufficient recovery window for
-	// the external branch.
-	exHorizon, exWindow := scopeState.ExternalBranch.ExtendHorizon()
-	count, childIndex := uint32(0), exHorizon
-	for count < exWindow {
-		keyPath := externalKeyPath(childIndex)
-		addr, err := scopedMgr.DeriveFromKeyPath(ns, keyPath)
-		switch {
-		case err == hdkeychain.ErrInvalidChild:
-			// Record the existence of an invalid child with the
-			// external branch's recovery state. This also
-			// increments the branch's horizon so that it accounts
-			// for this skipped child index.
-			scopeState.ExternalBranch.MarkInvalidChild(childIndex)
-			childIndex++
-			continue
-
-		case err != nil:
+	for accountIndex, accountState := range scopeState {
+		acctKey, err := scopedMgr.DeriveAccountKey(ns, uint32(accountIndex))
+		if err != nil {
 			return err
 		}
+		for branchIndex, branchState := range accountState {
+			exHorizon, exWindow := branchState.ExtendHorizon()
+			count, addrIndex := uint32(0), exHorizon
 
-		// Register the newly generated external address and child index
-		// with the external branch recovery state.
-		scopeState.ExternalBranch.AddAddr(childIndex, addr.Address())
+			branchKey, err := acctKey.Derive(uint32(branchIndex))
+			if err != nil {
+				return err
+			}
 
-		childIndex++
-		count++
-	}
+			for count < exWindow {
+				kp := keyPath(uint32(accountIndex), uint32(branchIndex), addrIndex)
+				indexKey, err := branchKey.Derive(addrIndex)
+				if err != nil {
+					return err
+				}
+				addrType := waddrmgr.ScopeAddrMap[scopedMgr.Scope()].ExternalAddrType
+				addr, err := scopedMgr.DeriveFromExtKeys(kp, indexKey, addrType)
+				switch {
+				case err == hdkeychain.ErrInvalidChild:
+					branchState.MarkInvalidChild(addrIndex)
+					addrIndex++
+					continue
 
-	// Compute the current internal horizon and the number of addresses we
-	// must derive to ensure we maintain a sufficient recovery window for
-	// the internal branch.
-	inHorizon, inWindow := scopeState.InternalBranch.ExtendHorizon()
-	count, childIndex = 0, inHorizon
-	for count < inWindow {
-		keyPath := internalKeyPath(childIndex)
-		addr, err := scopedMgr.DeriveFromKeyPath(ns, keyPath)
-		switch {
-		case err == hdkeychain.ErrInvalidChild:
-			// Record the existence of an invalid child with the
-			// internal branch's recovery state. This also
-			// increments the branch's horizon so that it accounts
-			// for this skipped child index.
-			scopeState.InternalBranch.MarkInvalidChild(childIndex)
-			childIndex++
-			continue
+				case err != nil:
+					return err
+				}
 
-		case err != nil:
-			return err
+				branchState.AddAddr(addrIndex, addr.Address())
+
+				addrIndex++
+				count++
+			}
 		}
-
-		// Register the newly generated internal address and child index
-		// with the internal branch recovery state.
-		scopeState.InternalBranch.AddAddr(childIndex, addr.Address())
-
-		childIndex++
-		count++
 	}
 
 	return nil
 }
 
-// keyPath returns the relative external derivation path /account/branch/index.
+// keyPath returns the relative derivation path /account/branch/index.
 func keyPath(account, branch, index uint32) waddrmgr.DerivationPath {
 	return waddrmgr.DerivationPath{
 		InternalAccount: account,
@@ -976,23 +967,22 @@ func newFilterBlocksRequest(batch []wtxmgr.BlockMeta,
 		WatchedOutPoints: recoveryState.WatchedOutPoints(),
 	}
 
-	// Populate the external and internal addresses by merging the addresses
-	// sets belong to all currently tracked scopes.
+	// Populate the addresses by merging the addresses sets belong to all
+	// currently tracked scopes.
 	for scope := range scopedMgrs {
 		scopeState := recoveryState.StateForScope(scope)
-		for index, addr := range scopeState.ExternalBranch.Addrs() {
-			scopedIndex := waddrmgr.ScopedIndex{
-				Scope: scope,
-				Index: index,
+		for accountIndex, accountState := range scopeState {
+			for branchIndex, branchState := range accountState {
+				for addrIndex, addr := range branchState.Addrs() {
+					scopedIndex := waddrmgr.ScopedIndex{
+						Scope:   scope,
+						Account: uint32(accountIndex),
+						Branch:  uint32(branchIndex),
+						Index:   addrIndex,
+					}
+					filterReq.Addresses[scopedIndex] = addr
+				}
 			}
-			filterReq.ExternalAddrs[scopedIndex] = addr
-		}
-		for index, addr := range scopeState.InternalBranch.Addrs() {
-			scopedIndex := waddrmgr.ScopedIndex{
-				Scope: scope,
-				Index: index,
-			}
-			filterReq.InternalAddrs[scopedIndex] = addr
 		}
 	}
 
@@ -1007,85 +997,63 @@ func extendFoundAddresses(ns walletdb.ReadWriteBucket,
 	scopedMgrs map[waddrmgr.KeyScope]*waddrmgr.ScopedKeyManager,
 	recoveryState *RecoveryState) error {
 
-	// Mark all recovered external addresses as used. This will be done only
-	// for scopes that reported a non-zero number of external addresses in
-	// this block.
-	for scope, indexes := range filterResp.FoundExternalAddrs {
-		// First, report all external child indexes found for this
-		// scope. This ensures that the external last-found index will
-		// be updated to include the maximum child index seen thus far.
-		scopeState := recoveryState.StateForScope(scope)
-		for index := range indexes {
-			scopeState.ExternalBranch.ReportFound(index)
-		}
-
-		scopedMgr := scopedMgrs[scope]
-
+	// Mark all recovered addresses as used. This will be done only for
+	// scopes that reported a non-zero number of addresses in this block.
+	for index := range filterResp.FoundAddresses {
+		scopedMgr := scopedMgrs[index.Scope]
+		// First, report all child indexes found for this scope. This
+		// ensures that the last-found index will be updated to include
+		// the maximum child index seen thus far.
+		scopeState := recoveryState.StateForScope(index.Scope)
+		branchState := scopeState[index.Account][index.Branch]
+		branchState.ReportFound(index.Index)
 		// Now, with all found addresses reported, derive and extend all
 		// external addresses up to and including the current last found
 		// index for this scope.
-		exNextUnfound := scopeState.ExternalBranch.NextUnfound()
+		nextFound := branchState.NextUnfound()
 
-		exLastFound := exNextUnfound
-		if exLastFound > 0 {
-			exLastFound--
+		lastFound := nextFound
+		if lastFound > 0 {
+			lastFound--
 		}
 
-		err := scopedMgr.ExtendExternalAddresses(
-			ns, waddrmgr.DefaultAccountNum, exLastFound,
+		err := scopedMgr.ExtendAddresses(
+			ns, index.Account, index.Branch, lastFound,
 		)
 		if err != nil {
 			return err
 		}
 
 		// Finally, with the scope's addresses extended, we mark used
-		// the external addresses that were found in the block and
-		// belong to this scope.
-		for index := range indexes {
-			addr := scopeState.ExternalBranch.GetAddr(index)
-			err := scopedMgr.MarkUsed(ns, addr)
-			if err != nil {
-				return err
-			}
+		// the addresses that were found in the block and belong to
+		// this scope.
+		addr := branchState.GetAddr(index.Index)
+		err = scopedMgr.MarkUsed(ns, addr)
+		if err != nil {
+			return err
 		}
 	}
 
-	// Mark all recovered internal addresses as used. This will be done only
-	// for scopes that reported a non-zero number of internal addresses in
-	// this block.
-	for scope, indexes := range filterResp.FoundInternalAddrs {
-		// First, report all internal child indexes found for this
-		// scope. This ensures that the internal last-found index will
-		// be updated to include the maximum child index seen thus far.
-		scopeState := recoveryState.StateForScope(scope)
-		for index := range indexes {
-			scopeState.InternalBranch.ReportFound(index)
-		}
-
-		scopedMgr := scopedMgrs[scope]
-
-		// Now, with all found addresses reported, derive and extend all
-		// internal addresses up to and including the current last found
-		// index for this scope.
-		inNextUnfound := scopeState.InternalBranch.NextUnfound()
-
-		inLastFound := inNextUnfound
-		if inLastFound > 0 {
-			inLastFound--
-		}
-		err := scopedMgr.ExtendInternalAddresses(
-			ns, waddrmgr.DefaultAccountNum, inLastFound,
-		)
+	var lastAccount uint32
+	for _, scopedMgr := range scopedMgrs {
+		account, err := scopedMgr.LastAccount(ns)
 		if err != nil {
 			return err
 		}
+		if lastAccount < account {
+			lastAccount = account
+		}
+	}
 
-		// Finally, with the scope's addresses extended, we mark used
-		// the internal addresses that were found in the blockand belong
-		// to this scope.
-		for index := range indexes {
-			addr := scopeState.InternalBranch.GetAddr(index)
-			err := scopedMgr.MarkUsed(ns, addr)
+	// Make sure all scopes are extended to the same account.
+	for _, s := range scopedMgrs {
+		for gapAccount := lastAccount; gapAccount >= 0; gapAccount-- {
+			_, err := s.AccountProperties(ns, gapAccount)
+			// If the account exists, we can stop extending.
+			if err == nil {
+				break
+			}
+			err = s.NewRawAccount(ns, gapAccount)
 			if err != nil {
 				return err
 			}

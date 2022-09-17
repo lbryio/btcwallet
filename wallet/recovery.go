@@ -63,66 +63,45 @@ func (rm *RecoveryManager) Resurrect(ns walletdb.ReadBucket,
 	// First, for each scope that we are recovering, rederive all of the
 	// addresses up to the last found address known to each branch.
 	for keyScope, scopedMgr := range scopedMgrs {
-		// Load the current account properties for this scope, using the
-		// the default account number.
-		// TODO(conner): rescan for all created accounts if we allow
-		// users to use non-default address
+
 		scopeState := rm.state.StateForScope(keyScope)
-		acctProperties, err := scopedMgr.AccountProperties(
-			ns, waddrmgr.DefaultAccountNum,
-		)
+
+		lastAccount, err := scopedMgr.LastAccount(ns)
 		if err != nil {
 			return err
 		}
 
-		// Fetch the external key count, which bounds the indexes we
-		// will need to rederive.
-		externalCount := acctProperties.ExternalKeyCount
-
-		// Walk through all indexes through the last external key,
-		// deriving each address and adding it to the external branch
-		// recovery state's set of addresses to look for.
-		for i := uint32(0); i < externalCount; i++ {
-			keyPath := externalKeyPath(i)
-			addr, err := scopedMgr.DeriveFromKeyPath(ns, keyPath)
-			if err != nil && err != hdkeychain.ErrInvalidChild {
+		for accountIndex, accountState := range scopeState[:lastAccount+1] {
+			log.Infof("Resurrecting addresses for key scope %v, account %v", keyScope, accountIndex)
+			acctProperties, err := scopedMgr.AccountProperties(ns,
+				uint32(accountIndex))
+			if err != nil {
 				return err
-			} else if err == hdkeychain.ErrInvalidChild {
-				scopeState.ExternalBranch.MarkInvalidChild(i)
-				continue
 			}
 
-			scopeState.ExternalBranch.AddAddr(i, addr.Address())
-		}
-
-		// Fetch the internal key count, which bounds the indexes we
-		// will need to rederive.
-		internalCount := acctProperties.InternalKeyCount
-
-		// Walk through all indexes through the last internal key,
-		// deriving each address and adding it to the internal branch
-		// recovery state's set of addresses to look for.
-		for i := uint32(0); i < internalCount; i++ {
-			keyPath := internalKeyPath(i)
-			addr, err := scopedMgr.DeriveFromKeyPath(ns, keyPath)
-			if err != nil && err != hdkeychain.ErrInvalidChild {
-				return err
-			} else if err == hdkeychain.ErrInvalidChild {
-				scopeState.InternalBranch.MarkInvalidChild(i)
-				continue
+			// Fetch the key count, which bounds the indexes we
+			// will need to rederive.
+			counts := []uint32{
+				acctProperties.ExternalKeyCount,
+				acctProperties.InternalKeyCount,
 			}
 
-			scopeState.InternalBranch.AddAddr(i, addr.Address())
-		}
-
-		// The key counts will point to the next key that can be
-		// derived, so we subtract one to point to last known key. If
-		// the key count is zero, then no addresses have been found.
-		if externalCount > 0 {
-			scopeState.ExternalBranch.ReportFound(externalCount - 1)
-		}
-		if internalCount > 0 {
-			scopeState.InternalBranch.ReportFound(internalCount - 1)
+			for branchIndex, branchState := range accountState {
+				// Walk through all indexes through the last key,
+				// deriving each address and adding it to the branch
+				// recovery state's set of addresses to look for.
+				for addrIndex := uint32(0); addrIndex < counts[branchIndex]; addrIndex++ {
+					keyPath := keyPath(uint32(accountIndex), uint32(branchIndex), addrIndex)
+					addr, err := scopedMgr.DeriveFromKeyPath(ns, keyPath)
+					if err != nil && err != hdkeychain.ErrInvalidChild {
+						return err
+					} else if err == hdkeychain.ErrInvalidChild {
+						branchState.MarkInvalidChild(addrIndex)
+						continue
+					}
+					branchState.AddAddr(addrIndex, addr.Address())
+				}
+			}
 		}
 	}
 
@@ -202,7 +181,7 @@ type RecoveryState struct {
 
 	// scopes maintains a map of each requested key scope to its active
 	// RecoveryState.
-	scopes map[waddrmgr.KeyScope]*ScopeRecoveryState
+	scopes map[waddrmgr.KeyScope]ScopeRecoveryState
 
 	// watchedOutPoints contains the set of all outpoints known to the
 	// wallet. This is updated iteratively as new outpoints are found during
@@ -214,7 +193,7 @@ type RecoveryState struct {
 // recoveryWindow. Each RecoveryState that is subsequently initialized for a
 // particular key scope will receive the same recoveryWindow.
 func NewRecoveryState(recoveryWindow uint32) *RecoveryState {
-	scopes := make(map[waddrmgr.KeyScope]*ScopeRecoveryState)
+	scopes := make(map[waddrmgr.KeyScope]ScopeRecoveryState)
 
 	return &RecoveryState{
 		recoveryWindow:   recoveryWindow,
@@ -227,18 +206,21 @@ func NewRecoveryState(recoveryWindow uint32) *RecoveryState {
 // does not already exist, a new one will be generated with the RecoveryState's
 // recoveryWindow.
 func (rs *RecoveryState) StateForScope(
-	keyScope waddrmgr.KeyScope) *ScopeRecoveryState {
+	keyScope waddrmgr.KeyScope) ScopeRecoveryState {
 
-	// If the account recovery state already exists, return it.
-	if scopeState, ok := rs.scopes[keyScope]; ok {
-		return scopeState
+	scopeState, ok := rs.scopes[keyScope]
+	if !ok {
+		for i := 0; i < waddrmgr.AccountGapLimit; i++ {
+			accountState := []*BranchRecoveryState{
+				NewBranchRecoveryState(rs.recoveryWindow),
+				NewBranchRecoveryState(rs.recoveryWindow),
+			}
+			scopeState = append(scopeState, accountState)
+		}
+		rs.scopes[keyScope] = scopeState
 	}
 
-	// Otherwise, initialize the recovery state for this scope with the
-	// chosen recovery window.
-	rs.scopes[keyScope] = NewScopeRecoveryState(rs.recoveryWindow)
-
-	return rs.scopes[keyScope]
+	return scopeState
 }
 
 // WatchedOutPoints returns the global set of outpoints that are known to belong
@@ -256,22 +238,11 @@ func (rs *RecoveryState) AddWatchedOutPoint(outPoint *wire.OutPoint,
 }
 
 // ScopeRecoveryState is used to manage the recovery of addresses generated
-// under a particular BIP32 account. Each account tracks both an external and
-// internal branch recovery state, both of which use the same recovery window.
-type ScopeRecoveryState struct {
-	// ExternalBranch is the recovery state of addresses generated for
-	// external use, i.e. receiving addresses.
-	AccountBranches [][2]*BranchRecoveryState
-}
+// under a BIP32 accounts. Each account tracks both an external and internal
+// branch recovery state, both of which use the same recovery window.
+type ScopeRecoveryState []AccountRecoveryState
 
-// NewScopeRecoveryState initializes an ScopeRecoveryState with the chosen
-// recovery window.
-func NewScopeRecoveryState(recoveryWindow uint32) *ScopeRecoveryState {
-	return &ScopeRecoveryState{
-		ExternalBranch: NewBranchRecoveryState(recoveryWindow),
-		InternalBranch: NewBranchRecoveryState(recoveryWindow),
-	}
-}
+type AccountRecoveryState []*BranchRecoveryState
 
 // BranchRecoveryState maintains the required state in-order to properly
 // recover addresses derived from a particular account's internal or external

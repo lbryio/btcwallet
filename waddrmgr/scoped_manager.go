@@ -116,11 +116,15 @@ type KeyScope struct {
 // identify a particular child key, when the account and branch can be inferred
 // from context.
 type ScopedIndex struct {
-	// Scope is the BIP44 account' used to derive the child key.
-	Scope KeyScope
+	Scope   KeyScope
+	Account uint32
+	Branch  uint32
+	Index   uint32
+}
 
-	// Index is the BIP44 address_index used to derive the child key.
-	Index uint32
+func (i ScopedIndex) String() string {
+	return fmt.Sprintf("%s/%d'/%d/%d",
+		i.Scope, i.Account, i.Branch, i.Index)
 }
 
 // String returns a human readable version describing the keypath encapsulated
@@ -625,6 +629,14 @@ func (s *ScopedKeyManager) DeriveFromKeyPathCache(
 	return privKey, nil
 }
 
+func (s *ScopedKeyManager) DeriveFromExtKeys(kp DerivationPath,
+	derivedKey *hdkeychain.ExtendedKey,
+	addrType AddressType) (ManagedAddress, error) {
+	return newManagedAddressFromExtKey(
+		s, kp, derivedKey, addrType,
+	)
+}
+
 // DeriveFromKeyPath attempts to derive a maximal child key (under the BIP0044
 // scheme) from a given key path. If key derivation isn't possible, then an
 // error will be returned.
@@ -1105,11 +1117,28 @@ func (s *ScopedKeyManager) nextAddresses(ns walletdb.ReadWriteBucket,
 //
 // This function MUST be called with the manager lock held for writes.
 func (s *ScopedKeyManager) extendAddresses(ns walletdb.ReadWriteBucket,
-	account uint32, lastIndex uint32, internal bool) error {
+	account uint32, branch uint32, lastIndex uint32) error {
 
 	// The next address can only be generated for accounts that have
 	// already been created.
 	acctInfo, err := s.loadAccountInfo(ns, account)
+	if err != nil {
+		err = s.newAccount(ns, account, fmt.Sprintf("act:%v", account))
+		if err != nil {
+			return err
+		}
+		for gapAccount := account - 1; gapAccount >= 0; gapAccount-- {
+			_, err = s.loadAccountInfo(ns, gapAccount)
+			if err == nil {
+				break
+			}
+			err = s.newAccount(ns, gapAccount, fmt.Sprintf("act:%v", gapAccount))
+			if err != nil {
+				return err
+			}
+		}
+	}
+	acctInfo, err = s.loadAccountInfo(ns, account)
 	if err != nil {
 		return err
 	}
@@ -1472,8 +1501,40 @@ func (s *ScopedKeyManager) newAccount(ns walletdb.ReadWriteBucket,
 		return err
 	}
 
+	lastAccount, err := fetchLastAccount(ns, &s.scope)
+	if account < lastAccount {
+		return nil
+	}
+
 	// Save last account metadata
 	return putLastAccount(ns, &s.scope, account)
+}
+
+func (s *ScopedKeyManager) DeriveAccountKey(ns walletdb.ReadWriteBucket,
+	account uint32) (*hdkeychain.ExtendedKey, error) {
+
+	_, coinTypePrivEnc, err := fetchCoinTypeKeys(ns, &s.scope)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decrypt the cointype key.
+	serializedKeyPriv, err := s.rootManager.cryptoKeyPriv.Decrypt(coinTypePrivEnc)
+	if err != nil {
+		str := fmt.Sprintf("failed to decrypt cointype serialized private key")
+		return nil, managerError(ErrLocked, str, err)
+	}
+	defer zero.Bytes(serializedKeyPriv)
+
+	coinTypeKeyPriv, err := hdkeychain.NewKeyFromString(string(serializedKeyPriv))
+	if err != nil {
+		str := fmt.Sprintf("failed to create cointype extended private key")
+		return nil, managerError(ErrKeyChain, str, err)
+	}
+	defer coinTypeKeyPriv.Zero()
+
+	// Derive the account key using the cointype key
+	return deriveAccountKey(coinTypeKeyPriv, account)
 }
 
 // RenameAccount renames an account stored in the manager based on the given

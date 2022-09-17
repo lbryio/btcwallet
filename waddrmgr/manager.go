@@ -42,6 +42,9 @@ const (
 	// ImportedAddrAccountName is the name of the imported account.
 	ImportedAddrAccountName = "imported"
 
+	// AccountGapLimit is used for account discovery defined in BIP0044
+	AccountGapLimit = 20
+
 	// DefaultAccountNum is the number of the default account.
 	DefaultAccountNum = 0
 
@@ -1527,7 +1530,7 @@ func createManagerKeyScope(ns walletdb.ReadWriteBucket,
 
 	// Derive the account key for the first account according our
 	// BIP0044-like derivation.
-	acctKeyPriv, err := deriveAccountKey(coinTypeKeyPriv, 0)
+	acctKeyPriv, err := deriveAccountKey(coinTypeKeyPriv, DefaultAccountNum)
 	if err != nil {
 		// The seed is unusable if the any of the children in the
 		// required hierarchy can't be derived due to invalid child.
