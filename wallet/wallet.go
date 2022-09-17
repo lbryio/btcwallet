@@ -1379,7 +1379,10 @@ func (w *Wallet) Unlock(passphrase []byte, lock <-chan time.Time) error {
 
 // Lock locks the wallet's address manager.
 func (w *Wallet) Lock() {
-	w.lockRequests <- struct{}{}
+	select {
+	case <-w.quitChan():
+	case w.lockRequests <- struct{}{}:
+	}
 }
 
 // Locked returns whether the account manager for a wallet is locked.
