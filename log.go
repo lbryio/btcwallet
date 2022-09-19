@@ -15,7 +15,6 @@ import (
 	"github.com/lbryio/lbcd/rpcclient"
 	"github.com/lbryio/lbcwallet/chain"
 	"github.com/lbryio/lbcwallet/rpc/legacyrpc"
-	"github.com/lbryio/lbcwallet/rpc/rpcserver"
 	"github.com/lbryio/lbcwallet/wallet"
 	"github.com/lbryio/lbcwallet/wtxmgr"
 )
@@ -67,7 +66,6 @@ func init() {
 	wtxmgr.UseLogger(txmgrLog)
 	chain.UseLogger(chainLog)
 	rpcclient.UseLogger(chainLog)
-	rpcserver.UseLogger(grpcLog)
 	legacyrpc.UseLogger(legacyRPCLog)
 }
 

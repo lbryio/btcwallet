@@ -75,7 +75,7 @@ func walletMain() error {
 	// Create and start HTTP server to serve wallet client connections.
 	// This will be updated with the wallet and chain server RPC client
 	// created below after each is created.
-	rpcs, legacyRPCServer, err := startRPCServers(loader)
+	legacyRPCServer, err := startRPCServers(loader)
 	if err != nil {
 		log.Errorf("Unable to create RPC servers: %v", err)
 		return err
@@ -88,7 +88,7 @@ func walletMain() error {
 	}
 
 	loader.RunAfterLoad(func(w *wallet.Wallet) {
-		startWalletRPCServices(w, rpcs, legacyRPCServer)
+		startWalletRPCServices(w, legacyRPCServer)
 	})
 
 	if !cfg.NoInitialLoad {
@@ -110,15 +110,6 @@ func walletMain() error {
 			log.Errorf("Failed to close wallet: %v", err)
 		}
 	})
-	if rpcs != nil {
-		addInterruptHandler(func() {
-			// TODO: Does this need to wait for the grpc server to
-			// finish up any requests?
-			log.Warn("Stopping RPC server...")
-			rpcs.Stop()
-			log.Info("RPC server shutdown")
-		})
-	}
 	if legacyRPCServer != nil {
 		addInterruptHandler(func() {
 			log.Warn("Stopping legacy RPC server...")

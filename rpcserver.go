@@ -18,10 +18,7 @@ import (
 
 	btcutil "github.com/lbryio/lbcutil"
 	"github.com/lbryio/lbcwallet/rpc/legacyrpc"
-	"github.com/lbryio/lbcwallet/rpc/rpcserver"
 	"github.com/lbryio/lbcwallet/wallet"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 // openRPCKeyPair creates or loads the RPC TLS keypair specified by the
@@ -102,9 +99,8 @@ func generateRPCKeyPair(writeKey bool) (tls.Certificate, error) {
 	return keyPair, nil
 }
 
-func startRPCServers(walletLoader *wallet.Loader) (*grpc.Server, *legacyrpc.Server, error) {
+func startRPCServers(walletLoader *wallet.Loader) (*legacyrpc.Server, error) {
 	var (
-		server       *grpc.Server
 		legacyServer *legacyrpc.Server
 		legacyListen = net.Listen
 		keyPair      tls.Certificate
@@ -115,7 +111,7 @@ func startRPCServers(walletLoader *wallet.Loader) (*grpc.Server, *legacyrpc.Serv
 	} else {
 		keyPair, err = openRPCKeyPair()
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		// Change the standard net.Listen function to the tls one.
@@ -128,27 +124,6 @@ func startRPCServers(walletLoader *wallet.Loader) (*grpc.Server, *legacyrpc.Serv
 			return tls.Listen(net, laddr, tlsConfig)
 		}
 
-		if len(cfg.ExperimentalRPCListeners) != 0 {
-			listeners := makeListeners(cfg.ExperimentalRPCListeners, net.Listen)
-			if len(listeners) == 0 {
-				err := errors.New("failed to create listeners for RPC server")
-				return nil, nil, err
-			}
-			creds := credentials.NewServerTLSFromCert(&keyPair)
-			server = grpc.NewServer(grpc.Creds(creds))
-			rpcserver.StartVersionService(server)
-			rpcserver.StartWalletLoaderService(server, walletLoader, activeNet)
-			for _, lis := range listeners {
-				lis := lis
-				go func() {
-					log.Infof("Experimental RPC server listening on %s",
-						lis.Addr())
-					err := server.Serve(lis)
-					log.Tracef("Finished serving expimental RPC: %v",
-						err)
-				}()
-			}
-		}
 	}
 
 	if cfg.Username == "" || cfg.Password == "" {
@@ -157,7 +132,7 @@ func startRPCServers(walletLoader *wallet.Loader) (*grpc.Server, *legacyrpc.Serv
 		listeners := makeListeners(cfg.LegacyRPCListeners, legacyListen)
 		if len(listeners) == 0 {
 			err := errors.New("failed to create listeners for legacy RPC server")
-			return nil, nil, err
+			return nil, err
 		}
 		opts := legacyrpc.Options{
 			Username:            cfg.Username,
@@ -169,11 +144,11 @@ func startRPCServers(walletLoader *wallet.Loader) (*grpc.Server, *legacyrpc.Serv
 	}
 
 	// Error when neither the GRPC nor legacy RPC servers can be started.
-	if server == nil && legacyServer == nil {
-		return nil, nil, errors.New("no suitable RPC services can be started")
+	if legacyServer == nil {
+		return nil, errors.New("no suitable RPC services can be started")
 	}
 
-	return server, legacyServer, nil
+	return legacyServer, nil
 }
 
 type listenFunc func(net string, laddr string) (net.Listener, error)
@@ -244,11 +219,6 @@ func makeListeners(normalizedListenAddrs []string, listen listenFunc) []net.List
 // with a wallet to enable remote wallet access.  For the GRPC server, this
 // registers the WalletService service, and for the legacy JSON-RPC server it
 // enables methods that require a loaded wallet.
-func startWalletRPCServices(wallet *wallet.Wallet, server *grpc.Server, legacyServer *legacyrpc.Server) {
-	if server != nil {
-		rpcserver.StartWalletService(server, wallet)
-	}
-	if legacyServer != nil {
-		legacyServer.RegisterWallet(wallet)
-	}
+func startWalletRPCServices(wallet *wallet.Wallet, legacyServer *legacyrpc.Server) {
+	legacyServer.RegisterWallet(wallet)
 }
