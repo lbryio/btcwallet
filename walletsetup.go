@@ -13,10 +13,7 @@ import (
 
 	"github.com/lbryio/lbcd/chaincfg"
 	"github.com/lbryio/lbcd/wire"
-	btcutil "github.com/lbryio/lbcutil"
-	"github.com/lbryio/lbcwallet/internal/legacy/keystore"
 	"github.com/lbryio/lbcwallet/internal/prompt"
-	"github.com/lbryio/lbcwallet/waddrmgr"
 	"github.com/lbryio/lbcwallet/wallet"
 	"github.com/lbryio/lbcwallet/walletdb"
 	_ "github.com/lbryio/lbcwallet/walletdb/bdb"
@@ -39,62 +36,6 @@ func networkDir(dataDir string, chainParams *chaincfg.Params) string {
 	return filepath.Join(dataDir, netname)
 }
 
-// convertLegacyKeystore converts all of the addresses in the passed legacy
-// key store to the new waddrmgr.Manager format.  Both the legacy keystore and
-// the new manager must be unlocked.
-func convertLegacyKeystore(legacyKeyStore *keystore.Store, w *wallet.Wallet) {
-	netParams := legacyKeyStore.Net()
-	blockStamp := waddrmgr.BlockStamp{
-		Height: 0,
-		Hash:   *netParams.GenesisHash,
-	}
-	for _, walletAddr := range legacyKeyStore.ActiveAddresses() {
-		switch addr := walletAddr.(type) {
-		case keystore.PubKeyAddress:
-			privKey, err := addr.PrivKey()
-			if err != nil {
-				fmt.Printf("WARN: Failed to obtain private key "+
-					"for address %v: %v\n", addr.Address(),
-					err)
-				continue
-			}
-
-			wif, err := btcutil.NewWIF(
-				privKey, netParams, addr.Compressed(),
-			)
-			if err != nil {
-				fmt.Printf("WARN: Failed to create wallet "+
-					"import format for address %v: %v\n",
-					addr.Address(), err)
-				continue
-			}
-
-			_, err = w.ImportPrivateKey(waddrmgr.KeyScopeBIP0044,
-				wif, &blockStamp, false)
-			if err != nil {
-				fmt.Printf("WARN: Failed to import private "+
-					"key for address %v: %v\n",
-					addr.Address(), err)
-				continue
-			}
-
-		case keystore.ScriptAddress:
-			_, err := w.ImportP2SHRedeemScript(addr.Script())
-			if err != nil {
-				fmt.Printf("WARN: Failed to import "+
-					"pay-to-script-hash script for "+
-					"address %v: %v\n", addr.Address(), err)
-				continue
-			}
-
-		default:
-			fmt.Printf("WARN: Skipping unrecognized legacy "+
-				"keystore type: %T\n", addr)
-			continue
-		}
-	}
-}
-
 // createWallet prompts the user for information needed to generate a new wallet
 // and generates the wallet accordingly.  The new wallet will reside at the
 // provided path.
@@ -104,70 +45,11 @@ func createWallet(cfg *config) error {
 		activeNet.Params, dbDir, true, cfg.DBTimeout, 250,
 	)
 
-	// When there is a legacy keystore, open it now to ensure any errors
-	// don't end up exiting the process after the user has spent time
-	// entering a bunch of information.
-	netDir := networkDir(cfg.AppDataDir.Value, activeNet.Params)
-	keystorePath := filepath.Join(netDir, keystore.Filename)
-	var legacyKeyStore *keystore.Store
-	_, err := os.Stat(keystorePath)
-	if err != nil && !os.IsNotExist(err) {
-		// A stat error not due to a non-existent file should be
-		// returned to the caller.
-		return err
-	} else if err == nil {
-		// Keystore file exists.
-		legacyKeyStore, err = keystore.OpenDir(netDir)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Start by prompting for the private passphrase.  When there is an
-	// existing keystore, the user will be promped for that passphrase,
-	// otherwise they will be prompted for a new one.
+	// Start by prompting for the private passphrase.
 	reader := bufio.NewReader(os.Stdin)
-	privPass, err := prompt.PrivatePass(reader, legacyKeyStore)
+	privPass, err := prompt.PrivatePass(reader)
 	if err != nil {
 		return err
-	}
-
-	// When there exists a legacy keystore, unlock it now and set up a
-	// callback to import all keystore keys into the new walletdb
-	// wallet
-	if legacyKeyStore != nil {
-		err = legacyKeyStore.Unlock(privPass)
-		if err != nil {
-			return err
-		}
-
-		// Import the addresses in the legacy keystore to the new wallet if
-		// any exist, locking each wallet again when finished.
-		loader.RunAfterLoad(func(w *wallet.Wallet) {
-			defer func() { _ = legacyKeyStore.Lock() }()
-
-			fmt.Println("Importing addresses from existing wallet...")
-
-			lockChan := make(chan time.Time, 1)
-			defer func() {
-				lockChan <- time.Time{}
-			}()
-			err := w.Unlock(privPass, lockChan)
-			if err != nil {
-				fmt.Printf("ERR: Failed to unlock new wallet "+
-					"during old wallet key import: %v", err)
-				return
-			}
-
-			convertLegacyKeystore(legacyKeyStore, w)
-
-			// Remove the legacy key store.
-			err = os.Remove(keystorePath)
-			if err != nil {
-				fmt.Printf("WARN: Failed to remove legacy wallet "+
-					"from'%s'\n", keystorePath)
-			}
-		})
 	}
 
 	// Ascertain the public passphrase.  This will either be a value

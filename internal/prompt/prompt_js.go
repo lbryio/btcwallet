@@ -7,8 +7,6 @@ package prompt
 import (
 	"bufio"
 	"fmt"
-
-	"github.com/lbryio/lbcwallet/internal/legacy/keystore"
 )
 
 func ProvideSeed() ([]byte, error) {
@@ -19,7 +17,7 @@ func ProvidePrivPassphrase() ([]byte, error) {
 	return nil, fmt.Errorf("prompt not supported in WebAssembly")
 }
 
-func PrivatePass(_ *bufio.Reader, _ *keystore.Store) ([]byte, error) {
+func PrivatePass(_ *bufio.Reader) ([]byte, error) {
 	return nil, fmt.Errorf("prompt not supported in WebAssembly")
 }
 

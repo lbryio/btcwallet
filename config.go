@@ -21,7 +21,6 @@ import (
 	"github.com/lbryio/lbcd/version"
 	btcutil "github.com/lbryio/lbcutil"
 	"github.com/lbryio/lbcwallet/internal/cfgutil"
-	"github.com/lbryio/lbcwallet/internal/legacy/keystore"
 	"github.com/lbryio/lbcwallet/netparams"
 	"github.com/lbryio/lbcwallet/wallet"
 )
@@ -527,22 +526,6 @@ func loadConfig() (*config, []string, error) {
 
 		// Created successfully, so exit now with success.
 		os.Exit(0)
-	} else if !dbFileExists && !cfg.NoInitialLoad {
-		keystorePath := filepath.Join(netDir, keystore.Filename)
-		keystoreExists, err := cfgutil.FileExists(keystorePath)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return nil, nil, err
-		}
-		if !keystoreExists {
-			err = fmt.Errorf("the wallet does not exist, run with " +
-				"the --create option to initialize and create it")
-		} else {
-			err = fmt.Errorf("the wallet is in legacy format, run " +
-				"with the --create option to import it")
-		}
-		fmt.Fprintln(os.Stderr, err)
-		return nil, nil, err
 	}
 
 	localhostListeners := map[string]struct{}{
