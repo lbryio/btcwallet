@@ -28,7 +28,6 @@ func TestErrorCodeStringer(t *testing.T) {
 		{waddrmgr.ErrCoinTypeTooHigh, "ErrCoinTypeTooHigh"},
 		{waddrmgr.ErrAccountNumTooHigh, "ErrAccountNumTooHigh"},
 		{waddrmgr.ErrLocked, "ErrLocked"},
-		{waddrmgr.ErrWatchingOnly, "ErrWatchingOnly"},
 		{waddrmgr.ErrInvalidAccount, "ErrInvalidAccount"},
 		{waddrmgr.ErrAddressNotFound, "ErrAddressNotFound"},
 		{waddrmgr.ErrAccountNotFound, "ErrAccountNotFound"},

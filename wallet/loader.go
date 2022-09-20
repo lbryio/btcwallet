@@ -168,9 +168,7 @@ func (l *Loader) CreateNewWallet(pubPassphrase, privPassphrase, seed []byte,
 		}
 	}
 
-	return l.createNewWallet(
-		pubPassphrase, privPassphrase, rootKey, bday, false,
-	)
+	return l.createNewWallet(pubPassphrase, privPassphrase, rootKey, bday)
 }
 
 // CreateNewWalletExtendedKey creates a new wallet from an extended master root
@@ -180,25 +178,11 @@ func (l *Loader) CreateNewWallet(pubPassphrase, privPassphrase, seed []byte,
 func (l *Loader) CreateNewWalletExtendedKey(pubPassphrase, privPassphrase []byte,
 	rootKey *hdkeychain.ExtendedKey, bday time.Time) (*Wallet, error) {
 
-	return l.createNewWallet(
-		pubPassphrase, privPassphrase, rootKey, bday, false,
-	)
-}
-
-// CreateNewWatchingOnlyWallet creates a new wallet using the provided
-// public passphrase.  No seed or private passphrase may be provided
-// since the wallet is watching-only.
-func (l *Loader) CreateNewWatchingOnlyWallet(pubPassphrase []byte,
-	bday time.Time) (*Wallet, error) {
-
-	return l.createNewWallet(
-		pubPassphrase, nil, nil, bday, true,
-	)
+	return l.createNewWallet(pubPassphrase, privPassphrase, rootKey, bday)
 }
 
 func (l *Loader) createNewWallet(pubPassphrase, privPassphrase []byte,
-	rootKey *hdkeychain.ExtendedKey, bday time.Time,
-	isWatchingOnly bool) (*Wallet, error) {
+	rootKey *hdkeychain.ExtendedKey, bday time.Time) (*Wallet, error) {
 
 	defer l.mu.Unlock()
 	l.mu.Lock()
@@ -232,22 +216,12 @@ func (l *Loader) createNewWallet(pubPassphrase, privPassphrase []byte,
 	}
 
 	// Initialize the newly created database for the wallet before opening.
-	if isWatchingOnly {
-		err := CreateWatchingOnlyWithCallback(
-			l.db, pubPassphrase, l.chainParams, bday,
-			l.walletCreated,
-		)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		err := CreateWithCallback(
-			l.db, pubPassphrase, privPassphrase, rootKey,
-			l.chainParams, bday, l.walletCreated,
-		)
-		if err != nil {
-			return nil, err
-		}
+	err = CreateWithCallback(
+		l.db, pubPassphrase, privPassphrase, rootKey,
+		l.chainParams, bday, l.walletCreated,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	// Open the newly-created wallet.

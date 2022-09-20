@@ -42,16 +42,6 @@ const (
 	// ImportedAddrAccountName is the name of the imported account.
 	ImportedAddrAccountName = "imported"
 
-	// ImportedWatchonlyAddrAccount is the account number to use for all
-	// imported watchonly addresses, such as public keys and addresses.
-	// This is useful since normal accounts are derived from the root
-	// hierarchical deterministic key and imported addresses do not fit
-	// into that model.
-	ImportedWatchonlyAddrAccount = hdkeychain.HardenedKeyStart - 2 // 2^31 - 2
-
-	// ImportedWatchonlyAddrAccountName is the name of the imported watchonly account.
-	ImportedWatchonlyAddrAccountName = "imported-watchonly"
-
 	// DefaultAccountNum is the number of the default account.
 	DefaultAccountNum = 0
 
@@ -221,10 +211,6 @@ type AccountProperties struct {
 	// KeyScope is the key scope the account belongs to.
 	KeyScope KeyScope
 
-	// IsWatchOnly indicates whether the is set up as watch-only, i.e., it
-	// doesn't contain any private key information.
-	IsWatchOnly bool
-
 	// AddrSchema, if non-nil, specifies an address schema override for
 	// address generation only applicable to the account.
 	AddrSchema *ScopeAddrSchema
@@ -352,12 +338,11 @@ type Manager struct {
 	externalAddrSchemas map[AddressType][]KeyScope
 	internalAddrSchemas map[AddressType][]KeyScope
 
-	syncState    syncState
-	watchingOnly bool
-	birthday     time.Time
-	locked       bool
-	closed       bool
-	chainParams  *chaincfg.Params
+	syncState   syncState
+	birthday    time.Time
+	locked      bool
+	closed      bool
+	chainParams *chaincfg.Params
 
 	// masterKeyPub is the secret key used to secure the cryptoKeyPub key
 	// and masterKeyPriv is the secret key used to secure the cryptoKeyPriv
@@ -395,46 +380,6 @@ type Manager struct {
 	// manager is already unlocked.  The hash is zeroed each lock.
 	privPassphraseSalt   [saltSize]byte
 	hashedPrivPassphrase [sha512.Size]byte
-}
-
-// WatchOnly returns true if the root manager is in watch only mode, and false
-// otherwise.
-func (m *Manager) WatchOnly() bool {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-
-	return m.watchOnly()
-}
-
-// watchOnly returns true if the root manager is in watch only mode, and false
-// otherwise.
-//
-// NOTE: This method requires the Manager's lock to be held.
-func (m *Manager) watchOnly() bool {
-	return m.watchingOnly
-}
-
-// IsWatchOnlyAccount determines if the account with the given key scope is set
-// up as watch-only.
-func (m *Manager) IsWatchOnlyAccount(ns walletdb.ReadBucket, keyScope KeyScope,
-	account uint32) (bool, error) {
-
-	if m.WatchOnly() {
-		return true, nil
-	}
-
-	if account == ImportedAddrAccount {
-		return false, nil
-	}
-	if account == ImportedWatchonlyAddrAccount {
-		return true, nil
-	}
-
-	scopedMgr, err := m.FetchScopedKeyManager(keyScope)
-	if err != nil {
-		return false, err
-	}
-	return scopedMgr.IsWatchOnlyAccount(ns, account)
 }
 
 // lock performs a best try effort to remove and zero all secret keys associated
@@ -497,7 +442,7 @@ func (m *Manager) Close() {
 	}
 
 	// Attempt to clear private key material from memory.
-	if !m.watchingOnly && !m.locked {
+	if !m.locked {
 		m.lock()
 	}
 
@@ -525,51 +470,50 @@ func (m *Manager) NewScopedKeyManager(ns walletdb.ReadWriteBucket,
 	defer m.mtx.Unlock()
 
 	var rootPriv *hdkeychain.ExtendedKey
-	if !m.watchingOnly {
-		// If the manager is locked, then we can't create a new scoped
-		// manager.
-		if m.locked {
-			return nil, managerError(ErrLocked, errLocked, nil)
-		}
+	// If the manager is locked, then we can't create a new scoped
+	// manager.
+	if m.locked {
+		return nil, managerError(ErrLocked, errLocked, nil)
+	}
 
-		// Now that we know the manager is unlocked, we'll need to
-		// fetch the root master HD private key. This is required as
-		// we'll be attempting the following derivation:
-		// m/purpose'/cointype'
-		//
-		// Note that the path to the coin type is requires hardened
-		// derivation, therefore this can only be done if the wallet's
-		// root key hasn't been neutered.
-		masterRootPrivEnc, _ := fetchMasterHDKeys(ns)
+	// Now that we know the manager is unlocked, we'll need to
+	// fetch the root master HD private key. This is required as
+	// we'll be attempting the following derivation:
+	// m/purpose'/cointype'
+	//
+	// Note that the path to the coin type is requires hardened
+	// derivation, therefore this can only be done if the wallet's
+	// root key hasn't been neutered.
+	masterRootPrivEnc, _ := fetchMasterHDKeys(ns)
 
-		// If the master root private key isn't found within the
-		// database, but we need to bail here as we can't create the
-		// cointype key without the master root private key.
-		if masterRootPrivEnc == nil {
-			return nil, managerError(ErrWatchingOnly, "", nil)
-		}
+	// If the master root private key isn't found within the
+	// database, but we need to bail here as we can't create the
+	// cointype key without the master root private key.
+	if masterRootPrivEnc == nil {
+		str := fmt.Sprintf("no master root private key found")
+		return nil, managerError(ErrKeyChain, str, nil)
+	}
 
-		// Before we can derive any new scoped managers using this
-		// key, we'll need to fully decrypt it.
-		serializedMasterRootPriv, err :=
-			m.cryptoKeyPriv.Decrypt(masterRootPrivEnc)
-		if err != nil {
-			str := fmt.Sprintf("failed to decrypt master root " +
-				"serialized private key")
-			return nil, managerError(ErrLocked, str, err)
-		}
+	// Before we can derive any new scoped managers using this
+	// key, we'll need to fully decrypt it.
+	serializedMasterRootPriv, err :=
+		m.cryptoKeyPriv.Decrypt(masterRootPrivEnc)
+	if err != nil {
+		str := fmt.Sprintf("failed to decrypt master root " +
+			"serialized private key")
+		return nil, managerError(ErrLocked, str, err)
+	}
 
-		// Now that we know the root priv is within the database,
-		// we'll decode it into a usable object.
-		rootPriv, err = hdkeychain.NewKeyFromString(
-			string(serializedMasterRootPriv),
-		)
-		zero.Bytes(serializedMasterRootPriv)
-		if err != nil {
-			str := fmt.Sprintf("failed to create master extended " +
-				"private key")
-			return nil, managerError(ErrKeyChain, str, err)
-		}
+	// Now that we know the root priv is within the database,
+	// we'll decode it into a usable object.
+	rootPriv, err = hdkeychain.NewKeyFromString(
+		string(serializedMasterRootPriv),
+	)
+	zero.Bytes(serializedMasterRootPriv)
+	if err != nil {
+		str := fmt.Sprintf("failed to create master extended " +
+			"private key")
+		return nil, managerError(ErrKeyChain, str, err)
 	}
 
 	// Now that we have the root private key, we'll fetch the scope bucket
@@ -591,21 +535,19 @@ func (m *Manager) NewScopedKeyManager(ns walletdb.ReadWriteBucket,
 	}
 	scopeKey := scopeToBytes(&scope)
 	schemaBytes := scopeSchemaToBytes(&addrSchema)
-	err := scopeSchemas.Put(scopeKey[:], schemaBytes)
+	err = scopeSchemas.Put(scopeKey[:], schemaBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	if !m.watchingOnly {
-		// With the database state created, we'll now derive the
-		// cointype key using the master HD private key, then encrypt
-		// it along with the first account using our crypto keys.
-		err = createManagerKeyScope(
-			ns, scope, rootPriv, m.cryptoKeyPub, m.cryptoKeyPriv,
-		)
-		if err != nil {
-			return nil, err
-		}
+	// With the database state created, we'll now derive the
+	// cointype key using the master HD private key, then encrypt
+	// it along with the first account using our crypto keys.
+	err = createManagerKeyScope(
+		ns, scope, rootPriv, m.cryptoKeyPub, m.cryptoKeyPriv,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	// Finally, we'll register this new scoped manager with the root
@@ -886,18 +828,12 @@ func (m *Manager) ChainParams() *chaincfg.Params {
 }
 
 // ChangePassphrase changes either the public or private passphrase to the
-// provided value depending on the private flag.  In order to change the
-// private password, the address manager must not be watching-only.  The new
-// passphrase keys are derived using the scrypt parameters in the options, so
-// changing the passphrase may be used to bump the computational difficulty
-// needed to brute force the passphrase.
+// provided value depending on the private flag.  The new passphrase keys are
+// derived using the scrypt parameters in the options, so changing the
+// passphrase may be used to bump the computational difficulty needed to brute
+// force the passphrase.
 func (m *Manager) ChangePassphrase(ns walletdb.ReadWriteBucket, oldPassphrase,
 	newPassphrase []byte, private bool, config *ScryptOptions) error {
-
-	// No private passphrase to change for a watching-only address manager.
-	if private && m.watchingOnly {
-		return managerError(ErrWatchingOnly, errWatchingOnly, nil)
-	}
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -1045,91 +981,6 @@ func (m *Manager) ChangePassphrase(ns walletdb.ReadWriteBucket, oldPassphrase,
 	return nil
 }
 
-// ConvertToWatchingOnly converts the current address manager to a locked
-// watching-only address manager.
-//
-// WARNING: This function removes private keys from the existing address manager
-// which means they will no longer be available.  Typically the caller will make
-// a copy of the existing wallet database and modify the copy since otherwise it
-// would mean permanent loss of any imported private keys and scripts.
-//
-// Executing this function on a manager that is already watching-only will have
-// no effect.
-func (m *Manager) ConvertToWatchingOnly(ns walletdb.ReadWriteBucket) error {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	// Exit now if the manager is already watching-only.
-	if m.watchingOnly {
-		return nil
-	}
-
-	var err error
-
-	// Remove all private key material and mark the new database as
-	// watching only.
-	if err := deletePrivateKeys(ns); err != nil {
-		return maybeConvertDbError(err)
-	}
-
-	err = putWatchingOnly(ns, true)
-	if err != nil {
-		return maybeConvertDbError(err)
-	}
-
-	// Lock the manager to remove all clear text private key material from
-	// memory if needed.
-	if !m.locked {
-		m.lock()
-	}
-
-	// This section clears and removes the encrypted private key material
-	// that is ordinarily used to unlock the manager.  Since the the manager
-	// is being converted to watching-only, the encrypted private key
-	// material is no longer needed.
-
-	// Clear and remove all of the encrypted acount private keys.
-	for _, manager := range m.scopedManagers {
-		for _, acctInfo := range manager.acctInfo {
-			zero.Bytes(acctInfo.acctKeyEncrypted)
-			acctInfo.acctKeyEncrypted = nil
-		}
-	}
-
-	// Clear and remove encrypted private keys and encrypted scripts from
-	// all address entries.
-	for _, manager := range m.scopedManagers {
-		for _, ma := range manager.addrs {
-			switch addr := ma.(type) {
-			case *managedAddress:
-				zero.Bytes(addr.privKeyEncrypted)
-				addr.privKeyEncrypted = nil
-			case *scriptAddress:
-				zero.Bytes(addr.scriptEncrypted)
-				addr.scriptEncrypted = nil
-			}
-		}
-	}
-
-	// Clear and remove encrypted private and script crypto keys.
-	zero.Bytes(m.cryptoKeyScriptEncrypted)
-	m.cryptoKeyScriptEncrypted = nil
-	m.cryptoKeyScript = nil
-	zero.Bytes(m.cryptoKeyPrivEncrypted)
-	m.cryptoKeyPrivEncrypted = nil
-	m.cryptoKeyPriv = nil
-
-	// The master private key is derived from a passphrase when the manager
-	// is unlocked, so there is no encrypted version to zero.  However,
-	// it is no longer needed, so nil it.
-	m.masterKeyPriv = nil
-
-	// Mark the manager watching-only.
-	m.watchingOnly = true
-	return nil
-
-}
-
 // IsLocked returns whether or not the address managed is locked.  When it is
 // unlocked, the decryption key needed to decrypt private keys used for signing
 // is in memory.
@@ -1151,14 +1002,7 @@ func (m *Manager) isLocked() bool {
 
 // Lock performs a best try effort to remove and zero all secret keys associated
 // with the address manager.
-//
-// This function will return an error if invoked on a watching-only address
-// manager.
 func (m *Manager) Lock() error {
-	// A watching-only address manager can't be locked.
-	if m.watchingOnly {
-		return managerError(ErrWatchingOnly, errWatchingOnly, nil)
-	}
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -1177,14 +1021,7 @@ func (m *Manager) Lock() error {
 // is stored in memory until the address manager is locked.  Any failures that
 // occur during this function will result in the address manager being locked,
 // even if it was already unlocked prior to calling this function.
-//
-// This function will return an error if invoked on a watching-only address
-// manager.
 func (m *Manager) Unlock(ns walletdb.ReadBucket, passphrase []byte) error {
-	// A watching-only address manager can't be unlocked.
-	if m.watchingOnly {
-		return managerError(ErrWatchingOnly, errWatchingOnly, nil)
-	}
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -1337,7 +1174,7 @@ func (m *Manager) LookupAccount(ns walletdb.ReadBucket, name string) (KeyScope,
 func (m *Manager) selectCryptoKey(keyType CryptoKeyType) (EncryptorDecryptor, error) {
 	if keyType == CKTPrivate || keyType == CKTScript {
 		// The manager must be unlocked to work with the private keys.
-		if m.locked || m.watchingOnly {
+		if m.locked {
 			return nil, managerError(ErrLocked, errLocked, nil)
 		}
 	}
@@ -1401,7 +1238,7 @@ func newManager(chainParams *chaincfg.Params, masterKeyPub *snacl.SecretKey,
 	masterKeyPriv *snacl.SecretKey, cryptoKeyPub EncryptorDecryptor,
 	cryptoKeyPrivEncrypted, cryptoKeyScriptEncrypted []byte, syncInfo *syncState,
 	birthday time.Time, privPassphraseSalt [saltSize]byte,
-	scopedManagers map[KeyScope]*ScopedKeyManager, watchingOnly bool) *Manager {
+	scopedManagers map[KeyScope]*ScopedKeyManager) *Manager {
 
 	m := &Manager{
 		chainParams:              chainParams,
@@ -1419,7 +1256,6 @@ func newManager(chainParams *chaincfg.Params, masterKeyPub *snacl.SecretKey,
 		scopedManagers:           scopedManagers,
 		externalAddrSchemas:      make(map[AddressType][]KeyScope),
 		internalAddrSchemas:      make(map[AddressType][]KeyScope),
-		watchingOnly:             watchingOnly,
 	}
 
 	for _, sMgr := range m.scopedManagers {
@@ -1546,12 +1382,6 @@ func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
 		return nil, managerError(ErrUpgrade, str, nil)
 	}
 
-	// Load whether or not the manager is watching-only from the db.
-	watchingOnly, err := fetchWatchingOnly(ns)
-	if err != nil {
-		return nil, maybeConvertDbError(err)
-	}
-
 	// Load the master key params from the db.
 	masterKeyPubParams, masterKeyPrivParams, err := fetchMasterKeyParams(ns)
 	if err != nil {
@@ -1579,15 +1409,13 @@ func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
 		return nil, maybeConvertDbError(err)
 	}
 
-	// When not a watching-only manager, set the master private key params,
-	// but don't derive it now since the manager starts off locked.
+	// Set the master private key params, but don't derive it now since the
+	// manager starts off locked.
 	var masterKeyPriv snacl.SecretKey
-	if !watchingOnly {
-		err := masterKeyPriv.Unmarshal(masterKeyPrivParams)
-		if err != nil {
-			str := "failed to unmarshal master private key"
-			return nil, managerError(ErrCrypto, str, err)
-		}
+	err = masterKeyPriv.Unmarshal(masterKeyPrivParams)
+	if err != nil {
+		str := "failed to unmarshal master private key"
+		return nil, managerError(ErrCrypto, str, err)
 	}
 
 	// Derive the master public key using the serialized params and provided
@@ -1654,8 +1482,7 @@ func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
 	mgr := newManager(
 		chainParams, &masterKeyPub, &masterKeyPriv,
 		cryptoKeyPub, cryptoKeyPrivEnc, cryptoKeyScriptEnc, syncInfo,
-		birthday, privPassphraseSalt, scopedManagers, watchingOnly,
-	)
+		birthday, privPassphraseSalt, scopedManagers)
 
 	for _, scopedManager := range scopedManagers {
 		scopedManager.rootManager = mgr
@@ -1797,11 +1624,6 @@ func createManagerKeyScope(ns walletdb.ReadWriteBucket,
 // derived.  This allows all chained addresses in the address manager
 // to be recovered by using the same seed.
 //
-// If the provided seed value is nil the address manager will be
-// created in watchingOnly mode in which case no default accounts or
-// scoped managers are created - it is up to the caller to create a
-// new one with NewAccountWatchingOnly and NewScopedKeyManager.
-//
 // All private and public keys and information are protected by secret
 // keys derived from the provided private and public passphrases.  The
 // public passphrase is required on subsequent opens of the address
@@ -1820,9 +1642,6 @@ func Create(ns walletdb.ReadWriteBucket, rootKey *hdkeychain.ExtendedKey,
 	chainParams *chaincfg.Params, config *ScryptOptions,
 	birthday time.Time) error {
 
-	// If the seed argument is nil we create in watchingOnly mode.
-	isWatchingOnly := rootKey == nil
-
 	// Return an error if the manager has already been created in
 	// the given database namespace.
 	exists := managerExists(ns)
@@ -1831,17 +1650,13 @@ func Create(ns walletdb.ReadWriteBucket, rootKey *hdkeychain.ExtendedKey,
 	}
 
 	// Ensure the private passphrase is not empty.
-	if !isWatchingOnly && len(privPassphrase) == 0 {
+	if len(privPassphrase) == 0 {
 		str := "private passphrase may not be empty"
 		return managerError(ErrEmptyPassphrase, str, nil)
 	}
 
 	// Perform the initial bucket creation and database namespace setup.
-	defaultScopes := map[KeyScope]ScopeAddrSchema{}
-	if !isWatchingOnly {
-		defaultScopes = ScopeAddrMap
-	}
-	if err := createManagerNS(ns, defaultScopes); err != nil {
+	if err := createManagerNS(ns, ScopeAddrMap); err != nil {
 		return maybeConvertDbError(err)
 	}
 
@@ -1890,92 +1705,90 @@ func Create(ns walletdb.ReadWriteBucket, rootKey *hdkeychain.ExtendedKey,
 	var masterKeyPriv *snacl.SecretKey
 	var cryptoKeyPrivEnc []byte
 	var cryptoKeyScriptEnc []byte
-	if !isWatchingOnly {
-		masterKeyPriv, err = newSecretKey(&privPassphrase, config)
-		if err != nil {
-			str := "failed to master private key"
-			return managerError(ErrCrypto, str, err)
-		}
-		defer masterKeyPriv.Zero()
-
-		// Generate the private passphrase salt.  This is used when
-		// hashing passwords to detect whether an unlock can be
-		// avoided when the manager is already unlocked.
-		var privPassphraseSalt [saltSize]byte
-		_, err = rand.Read(privPassphraseSalt[:])
-		if err != nil {
-			str := "failed to read random source for passphrase salt"
-			return managerError(ErrCrypto, str, err)
-		}
-
-		cryptoKeyPriv, err := newCryptoKey()
-		if err != nil {
-			str := "failed to generate crypto private key"
-			return managerError(ErrCrypto, str, err)
-		}
-		defer cryptoKeyPriv.Zero()
-		cryptoKeyScript, err := newCryptoKey()
-		if err != nil {
-			str := "failed to generate crypto script key"
-			return managerError(ErrCrypto, str, err)
-		}
-		defer cryptoKeyScript.Zero()
-
-		cryptoKeyPrivEnc, err =
-			masterKeyPriv.Encrypt(cryptoKeyPriv.Bytes())
-		if err != nil {
-			str := "failed to encrypt crypto private key"
-			return managerError(ErrCrypto, str, err)
-		}
-		cryptoKeyScriptEnc, err =
-			masterKeyPriv.Encrypt(cryptoKeyScript.Bytes())
-		if err != nil {
-			str := "failed to encrypt crypto script key"
-			return managerError(ErrCrypto, str, err)
-		}
-
-		// Generate the BIP0044 HD key structure to ensure the
-		// provided seed can generate the required structure with no
-		// issues.
-		rootPubKey, err := rootKey.Neuter()
-		if err != nil {
-			str := "failed to neuter master extended key"
-			return managerError(ErrKeyChain, str, err)
-		}
-
-		// Next, for each registers default manager scope, we'll
-		// create the hardened cointype key for it, as well as the
-		// first default account.
-		for _, defaultScope := range DefaultKeyScopes {
-			err := createManagerKeyScope(
-				ns, defaultScope, rootKey, cryptoKeyPub, cryptoKeyPriv,
-			)
-			if err != nil {
-				return maybeConvertDbError(err)
-			}
-		}
-
-		// Before we proceed, we'll also store the root master private
-		// key within the database in an encrypted format. This is
-		// required as in the future, we may need to create additional
-		// scoped key managers.
-		masterHDPrivKeyEnc, err :=
-			cryptoKeyPriv.Encrypt([]byte(rootKey.String()))
-		if err != nil {
-			return maybeConvertDbError(err)
-		}
-		masterHDPubKeyEnc, err :=
-			cryptoKeyPub.Encrypt([]byte(rootPubKey.String()))
-		if err != nil {
-			return maybeConvertDbError(err)
-		}
-		err = putMasterHDKeys(ns, masterHDPrivKeyEnc, masterHDPubKeyEnc)
-		if err != nil {
-			return maybeConvertDbError(err)
-		}
-
-		privParams = masterKeyPriv.Marshal()
+	masterKeyPriv, err = newSecretKey(&privPassphrase, config)
+	if err != nil {
+		str := "failed to master private key"
+		return managerError(ErrCrypto, str, err)
 	}
+	defer masterKeyPriv.Zero()
+
+	// Generate the private passphrase salt.  This is used when
+	// hashing passwords to detect whether an unlock can be
+	// avoided when the manager is already unlocked.
+	var privPassphraseSalt [saltSize]byte
+	_, err = rand.Read(privPassphraseSalt[:])
+	if err != nil {
+		str := "failed to read random source for passphrase salt"
+		return managerError(ErrCrypto, str, err)
+	}
+
+	cryptoKeyPriv, err := newCryptoKey()
+	if err != nil {
+		str := "failed to generate crypto private key"
+		return managerError(ErrCrypto, str, err)
+	}
+	defer cryptoKeyPriv.Zero()
+	cryptoKeyScript, err := newCryptoKey()
+	if err != nil {
+		str := "failed to generate crypto script key"
+		return managerError(ErrCrypto, str, err)
+	}
+	defer cryptoKeyScript.Zero()
+
+	cryptoKeyPrivEnc, err =
+		masterKeyPriv.Encrypt(cryptoKeyPriv.Bytes())
+	if err != nil {
+		str := "failed to encrypt crypto private key"
+		return managerError(ErrCrypto, str, err)
+	}
+	cryptoKeyScriptEnc, err =
+		masterKeyPriv.Encrypt(cryptoKeyScript.Bytes())
+	if err != nil {
+		str := "failed to encrypt crypto script key"
+		return managerError(ErrCrypto, str, err)
+	}
+
+	// Generate the BIP0044 HD key structure to ensure the
+	// provided seed can generate the required structure with no
+	// issues.
+	rootPubKey, err := rootKey.Neuter()
+	if err != nil {
+		str := "failed to neuter master extended key"
+		return managerError(ErrKeyChain, str, err)
+	}
+
+	// Next, for each registers default manager scope, we'll
+	// create the hardened cointype key for it, as well as the
+	// first default account.
+	for _, defaultScope := range DefaultKeyScopes {
+		err := createManagerKeyScope(
+			ns, defaultScope, rootKey, cryptoKeyPub, cryptoKeyPriv,
+		)
+		if err != nil {
+			return maybeConvertDbError(err)
+		}
+	}
+
+	// Before we proceed, we'll also store the root master private
+	// key within the database in an encrypted format. This is
+	// required as in the future, we may need to create additional
+	// scoped key managers.
+	masterHDPrivKeyEnc, err :=
+		cryptoKeyPriv.Encrypt([]byte(rootKey.String()))
+	if err != nil {
+		return maybeConvertDbError(err)
+	}
+	masterHDPubKeyEnc, err :=
+		cryptoKeyPub.Encrypt([]byte(rootPubKey.String()))
+	if err != nil {
+		return maybeConvertDbError(err)
+	}
+	err = putMasterHDKeys(ns, masterHDPrivKeyEnc, masterHDPubKeyEnc)
+	if err != nil {
+		return maybeConvertDbError(err)
+	}
+
+	privParams = masterKeyPriv.Marshal()
 
 	// Save the master key params to the database.
 	err = putMasterKeyParams(ns, pubParams, privParams)
@@ -1986,13 +1799,6 @@ func Create(ns walletdb.ReadWriteBucket, rootKey *hdkeychain.ExtendedKey,
 	// Save the encrypted crypto keys to the database.
 	err = putCryptoKeys(ns, cryptoKeyPubEnc, cryptoKeyPrivEnc,
 		cryptoKeyScriptEnc)
-	if err != nil {
-		return maybeConvertDbError(err)
-	}
-
-	// Save the watching-only mode of the address manager to the
-	// database.
-	err = putWatchingOnly(ns, isWatchingOnly)
 	if err != nil {
 		return maybeConvertDbError(err)
 	}

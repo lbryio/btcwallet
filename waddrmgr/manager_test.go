@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -70,7 +69,6 @@ type testContext struct {
 	internalAccount uint32
 	create          bool
 	unlocked        bool
-	watchingOnly    bool
 }
 
 // addrType is the type of address being tested
@@ -162,12 +160,6 @@ func testManagedPubKeyAddress(tc *testContext, prefix string,
 	// for the expected error when the manager is locked.
 	gotPrivKey, err := gotAddr.PrivKey()
 	switch {
-	case tc.watchingOnly:
-		// Confirm expected watching-only error.
-		testName := fmt.Sprintf("%s PrivKey", prefix)
-		if !checkManagerError(tc.t, testName, err, ErrWatchingOnly) {
-			return false
-		}
 	case tc.unlocked:
 		if err != nil {
 			tc.t.Errorf("%s PrivKey: unexpected error - got %v",
@@ -194,12 +186,6 @@ func testManagedPubKeyAddress(tc *testContext, prefix string,
 	// the manager is locked.
 	gotWIF, err := gotAddr.ExportPrivKey()
 	switch {
-	case tc.watchingOnly:
-		// Confirm expected watching-only error.
-		testName := fmt.Sprintf("%s ExportPrivKey", prefix)
-		if !checkManagerError(tc.t, testName, err, ErrWatchingOnly) {
-			return false
-		}
 	case tc.unlocked:
 		if err != nil {
 			tc.t.Errorf("%s ExportPrivKey: unexpected error - "+
@@ -245,13 +231,6 @@ func testManagedScriptAddress(tc *testContext, prefix string,
 	// the expected error when the manager is locked.
 	gotScript, err := gotAddr.Script()
 	switch {
-	case tc.watchingOnly && !wantAddr.scriptNotSecret:
-		// Confirm expected watching-only error.
-		testName := fmt.Sprintf("%s Script", prefix)
-		if !checkManagerError(tc.t, testName, err, ErrWatchingOnly) {
-			return false
-		}
-
 	// Either the manger is unlocked or the script is not considered to
 	// be secret and is encrypted with the public key.
 	case tc.unlocked || wantAddr.scriptNotSecret:
@@ -448,13 +427,6 @@ func testExternalAddresses(tc *testContext) bool {
 		return false
 	}
 
-	// Everything after this point involves retesting with an unlocked
-	// address manager which is not possible for watching-only mode, so
-	// just exit now in that case.
-	if tc.watchingOnly {
-		return true
-	}
-
 	// Unlock the manager and retest all of the addresses to ensure the
 	// private information is valid as well.
 	err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
@@ -485,24 +457,19 @@ func testExternalAddresses(tc *testContext) bool {
 // retrieved by Address, and that they work properly when the manager is locked
 // and unlocked.
 func testInternalAddresses(tc *testContext) bool {
-	// When the address manager is not in watching-only mode, unlocked it
-	// first to ensure that address generation works correctly when the
-	// address manager is unlocked and then locked later.  These tests
-	// reverse the order done in the external tests which starts with a
-	// locked manager and unlock it afterwards.
-	if !tc.watchingOnly {
-		// Unlock the manager and retest all of the addresses to ensure the
-		// private information is valid as well.
-		err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
-			ns := tx.ReadBucket(waddrmgrNamespaceKey)
-			return tc.rootManager.Unlock(ns, privPassphrase)
-		})
-		if err != nil {
-			tc.t.Errorf("Unlock: unexpected error: %v", err)
-			return false
-		}
-		tc.unlocked = true
+	// These tests reverse the order done in the external tests which starts
+	// with a locked manager and unlock it afterwards.
+	// Unlock the manager and retest all of the addresses to ensure the
+	// private information is valid as well.
+	err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
+		ns := tx.ReadBucket(waddrmgrNamespaceKey)
+		return tc.rootManager.Unlock(ns, privPassphrase)
+	})
+	if err != nil {
+		tc.t.Errorf("Unlock: unexpected error: %v", err)
+		return false
 	}
+	tc.unlocked = true
 
 	prefix := testNamePrefix(tc) + " testInternalAddresses"
 	var addrs []ManagedAddress
@@ -597,22 +564,8 @@ func testInternalAddresses(tc *testContext) bool {
 		return true
 	}
 
-	// The address manager could either be locked or unlocked here depending
-	// on whether or not it's a watching-only manager.  When it's unlocked,
-	// this will test both the public and private address data are accurate.
-	// When it's locked, it must be watching-only, so only the public
-	// address information is tested and the private functions are checked
-	// to ensure they return the expected ErrWatchingOnly error.
 	if !testResults() {
 		return false
-	}
-
-	// Everything after this point involves locking the address manager and
-	// retesting the addresses with a locked manager.  However, for
-	// watching-only mode, this has already happened, so just exit now in
-	// that case.
-	if tc.watchingOnly {
-		return true
 	}
 
 	// Lock the manager and retest all of the addresses to ensure the
@@ -639,55 +592,38 @@ func testLocking(tc *testContext) bool {
 		return false
 	}
 
-	// Locking an already lock manager should return an error.  The error
-	// should be ErrLocked or ErrWatchingOnly depending on the type of the
-	// address manager.
+	// Locking an already lock manager should return an error.
 	err := tc.rootManager.Lock()
 	wantErrCode := ErrLocked
-	if tc.watchingOnly {
-		wantErrCode = ErrWatchingOnly
-	}
 	if !checkManagerError(tc.t, "Lock", err, wantErrCode) {
 		return false
 	}
 
 	// Ensure unlocking with the correct passphrase doesn't return any
 	// unexpected errors and the manager properly reports it is unlocked.
-	// Since watching-only address managers can't be unlocked, also ensure
-	// the correct error for that case.
 	err = walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
 		return tc.rootManager.Unlock(ns, privPassphrase)
 	})
-	if tc.watchingOnly {
-		if !checkManagerError(tc.t, "Unlock", err, ErrWatchingOnly) {
-			return false
-		}
-	} else if err != nil {
+	if err != nil {
 		tc.t.Errorf("Unlock: unexpected error: %v", err)
 		return false
 	}
-	if !tc.watchingOnly && tc.rootManager.IsLocked() {
+	if tc.rootManager.IsLocked() {
 		tc.t.Error("IsLocked: returned true on unlocked manager")
 		return false
 	}
 
-	// Unlocking the manager again is allowed.  Since watching-only address
-	// managers can't be unlocked, also ensure the correct error for that
-	// case.
+	// Unlocking the manager again is allowed.
 	err = walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
 		return tc.rootManager.Unlock(ns, privPassphrase)
 	})
-	if tc.watchingOnly {
-		if !checkManagerError(tc.t, "Unlock2", err, ErrWatchingOnly) {
-			return false
-		}
-	} else if err != nil {
+	if err != nil {
 		tc.t.Errorf("Unlock: unexpected error: %v", err)
 		return false
 	}
-	if !tc.watchingOnly && tc.rootManager.IsLocked() {
+	if tc.rootManager.IsLocked() {
 		tc.t.Error("IsLocked: returned true on unlocked manager")
 		return false
 	}
@@ -699,9 +635,6 @@ func testLocking(tc *testContext) bool {
 		return tc.rootManager.Unlock(ns, []byte("invalidpassphrase"))
 	})
 	wantErrCode = ErrWrongPassphrase
-	if tc.watchingOnly {
-		wantErrCode = ErrWatchingOnly
-	}
 	if !checkManagerError(tc.t, "Unlock", err, wantErrCode) {
 		return false
 	}
@@ -760,19 +693,16 @@ func testImportPrivateKey(tc *testContext) bool {
 		},
 	}
 
-	// The manager must be unlocked to import a private key, however a
-	// watching-only manager can't be unlocked.
-	if !tc.watchingOnly {
-		err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
-			ns := tx.ReadBucket(waddrmgrNamespaceKey)
-			return tc.rootManager.Unlock(ns, privPassphrase)
-		})
-		if err != nil {
-			tc.t.Errorf("Unlock: unexpected error: %v", err)
-			return false
-		}
-		tc.unlocked = true
+	// The manager must be unlocked to import a private key.
+	err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
+		ns := tx.ReadBucket(waddrmgrNamespaceKey)
+		return tc.rootManager.Unlock(ns, privPassphrase)
+	})
+	if err != nil {
+		tc.t.Errorf("Unlock: unexpected error: %v", err)
+		return false
 	}
+	tc.unlocked = true
 
 	// Only import the private keys when in the create phase of testing.
 	tc.internalAccount = ImportedAddrAccount
@@ -853,22 +783,8 @@ func testImportPrivateKey(tc *testContext) bool {
 		return !failed
 	}
 
-	// The address manager could either be locked or unlocked here depending
-	// on whether or not it's a watching-only manager.  When it's unlocked,
-	// this will test both the public and private address data are accurate.
-	// When it's locked, it must be watching-only, so only the public
-	// address  information is tested and the private functions are checked
-	// to ensure they return the expected ErrWatchingOnly error.
 	if !testResults() {
 		return false
-	}
-
-	// Everything after this point involves locking the address manager and
-	// retesting the addresses with a locked manager.  However, for
-	// watching-only mode, this has already happened, so just exit now in
-	// that case.
-	if tc.watchingOnly {
-		return true
 	}
 
 	// Lock the manager and retest all of the addresses to ensure the
@@ -994,19 +910,16 @@ func testImportScript(tc *testContext) bool {
 	}
 
 	// The manager must be unlocked to import a private key and also for
-	// testing private data.  However, a watching-only manager can't be
-	// unlocked.
-	if !tc.watchingOnly {
-		err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
-			ns := tx.ReadBucket(waddrmgrNamespaceKey)
-			return tc.rootManager.Unlock(ns, privPassphrase)
-		})
-		if err != nil {
-			tc.t.Errorf("Unlock: unexpected error: %v", err)
-			return false
-		}
-		tc.unlocked = true
+	// testing private data.
+	err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
+		ns := tx.ReadBucket(waddrmgrNamespaceKey)
+		return tc.rootManager.Unlock(ns, privPassphrase)
+	})
+	if err != nil {
+		tc.t.Errorf("Unlock: unexpected error: %v", err)
+		return false
 	}
+	tc.unlocked = true
 
 	// Only import the scripts when in the create phase of testing.
 	tc.internalAccount = ImportedAddrAccount
@@ -1110,22 +1023,8 @@ func testImportScript(tc *testContext) bool {
 		return !failed
 	}
 
-	// The address manager could either be locked or unlocked here depending
-	// on whether or not it's a watching-only manager.  When it's unlocked,
-	// this will test both the public and private address data are accurate.
-	// When it's locked, it must be watching-only, so only the public
-	// address information is tested and the private functions are checked
-	// to ensure they return the expected ErrWatchingOnly error.
 	if !testResults() {
 		return false
-	}
-
-	// Everything after this point involves locking the address manager and
-	// retesting the addresses with a locked manager.  However, for
-	// watching-only mode, this has already happened, so just exit now in
-	// that case.
-	if tc.watchingOnly {
-		return true
 	}
 
 	// Lock the manager and retest all of the addresses to ensure the
@@ -1286,9 +1185,6 @@ func testChangePassphrase(tc *testContext) bool {
 		return false
 	}
 
-	// Attempt to change private passphrase with invalid old passphrase.
-	// The error should be ErrWrongPassphrase or ErrWatchingOnly depending
-	// on the type of the address manager.
 	testName = pfx + "ChangePassphrase (private) with invalid old passphrase"
 	err = walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
@@ -1297,19 +1193,8 @@ func testChangePassphrase(tc *testContext) bool {
 		)
 	})
 	wantErrCode := ErrWrongPassphrase
-	if tc.watchingOnly {
-		wantErrCode = ErrWatchingOnly
-	}
 	if !checkManagerError(tc.t, testName, err, wantErrCode) {
 		return false
-	}
-
-	// Everything after this point involves testing that the private
-	// passphrase for the address manager can be changed successfully.
-	// This is not possible for watching-only mode, so just exit now in that
-	// case.
-	if tc.watchingOnly {
-		return true
 	}
 
 	// Change the private passphrase.
@@ -1368,22 +1253,6 @@ func testChangePassphrase(tc *testContext) bool {
 // testNewAccount tests the new account creation func of the address manager works
 // as expected.
 func testNewAccount(tc *testContext) bool {
-	if tc.watchingOnly {
-		// Creating new accounts in watching-only mode should return ErrWatchingOnly
-		err := walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
-			ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-			_, err := tc.manager.NewAccount(ns, "test")
-			return err
-		})
-		if !checkManagerError(
-			tc.t, "Create account in watching-only mode", err,
-			ErrWatchingOnly,
-		) {
-			tc.manager.Close()
-			return false
-		}
-		return true
-	}
 	// Creating new accounts when wallet is locked should return ErrLocked
 	err := walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
@@ -1711,148 +1580,26 @@ func testForEachAccountAddress(tc *testContext) bool {
 // testManagerAPI tests the functions provided by the Manager API as well as
 // the ManagedAddress, ManagedPubKeyAddress, and ManagedScriptAddress
 // interfaces.
-func testManagerAPI(tc *testContext, caseCreatedWatchingOnly bool) {
-	if !caseCreatedWatchingOnly {
-		// Test API for normal create (w/ seed) case.
-		testLocking(tc)
-		testExternalAddresses(tc)
-		testInternalAddresses(tc)
-		testImportPrivateKey(tc)
-		testImportScript(tc)
-		testMarkUsed(tc, true)
-		testChangePassphrase(tc)
+func testManagerAPI(tc *testContext) {
+	// Test API for normal create (w/ seed) case.
+	testLocking(tc)
+	testExternalAddresses(tc)
+	testInternalAddresses(tc)
+	testImportPrivateKey(tc)
+	testImportScript(tc)
+	testMarkUsed(tc, true)
+	testChangePassphrase(tc)
 
-		// Reset default account
-		tc.internalAccount = 0
-		testNewAccount(tc)
-		testLookupAccount(tc)
-		testForEachAccount(tc)
-		testForEachAccountAddress(tc)
+	// Reset default account
+	tc.internalAccount = 0
+	testNewAccount(tc)
+	testLookupAccount(tc)
+	testForEachAccount(tc)
+	testForEachAccountAddress(tc)
 
-		// Rename account 1 "acct-create"
-		tc.internalAccount = 1
-		testRenameAccount(tc)
-	} else {
-		// Test API for created watch-only case.
-		testExternalAddresses(tc)
-		testInternalAddresses(tc)
-		testMarkUsed(tc, false)
-		testChangePassphrase(tc)
-
-		testNewAccount(tc)
-		expectedAccounts := map[string]uint32{
-			defaultAccountName: DefaultAccountNum,
-		}
-		testLookupExpectedAccount(tc, expectedAccounts, 0)
-		//testForEachAccount(tc)
-		testForEachAccountAddress(tc)
-	}
-}
-
-// testConvertWatchingOnly tests various facets of a watching-only address
-// manager such as running the full set of API tests against a newly converted
-// copy as well as when it is opened from an existing namespace.
-func testConvertWatchingOnly(tc *testContext) bool {
-	// These tests check the case where the manager was not initially
-	// created watch-only, but converted to watch only ...
-
-	// Make a copy of the current database so the copy can be converted to
-	// watching only.
-	woMgrName := "mgrtestwo.bin"
-	_ = os.Remove(woMgrName)
-	fi, err := os.OpenFile(woMgrName, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		tc.t.Errorf("%v", err)
-		return false
-	}
-	if err := tc.db.Copy(fi); err != nil {
-		fi.Close()
-		tc.t.Errorf("%v", err)
-		return false
-	}
-	fi.Close()
-	defer os.Remove(woMgrName)
-
-	// Open the new database copy and get the address manager namespace.
-	db, err := walletdb.Open("bdb", woMgrName, true, defaultDBTimeout)
-	if err != nil {
-		tc.t.Errorf("openDbNamespace: unexpected error: %v", err)
-		return false
-	}
-	defer db.Close()
-
-	// Open the manager using the namespace and convert it to watching-only.
-	var mgr *Manager
-	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
-		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		var err error
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
-		return err
-	})
-	if err != nil {
-		tc.t.Errorf("%v", err)
-		return false
-	}
-	err = walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
-		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-		return mgr.ConvertToWatchingOnly(ns)
-	})
-	if err != nil {
-		tc.t.Errorf("%v", err)
-		return false
-	}
-
-	// Run all of the manager API tests against the converted manager and
-	// close it. We'll also retrieve the default scope (BIP0044) from the
-	// manager in order to use.
-	scopedMgr, err := mgr.FetchScopedKeyManager(KeyScopeBIP0044)
-	if err != nil {
-		tc.t.Errorf("unable to fetch bip 44 scope %v", err)
-		return false
-	}
-	testManagerAPI(&testContext{
-		t:               tc.t,
-		caseName:        tc.caseName,
-		db:              db,
-		rootManager:     mgr,
-		manager:         scopedMgr,
-		internalAccount: 0,
-		create:          false,
-		watchingOnly:    true,
-	}, false)
-	mgr.Close()
-
-	// Open the watching-only manager and run all the tests again.
-	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
-		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		var err error
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
-		return err
-	})
-	if err != nil {
-		tc.t.Errorf("Open Watching-Only: unexpected error: %v", err)
-		return false
-	}
-	defer mgr.Close()
-
-	scopedMgr, err = mgr.FetchScopedKeyManager(KeyScopeBIP0044)
-	if err != nil {
-		tc.t.Errorf("unable to fetch bip 44 scope %v", err)
-		return false
-	}
-
-	testManagerAPI(&testContext{
-		t:               tc.t,
-		caseName:        tc.caseName,
-		db:              db,
-		rootManager:     mgr,
-		manager:         scopedMgr,
-		internalAccount: 0,
-		create:          false,
-		watchingOnly:    true,
-	}, false)
-
-	return true
+	// Rename account 1 "acct-create"
+	tc.internalAccount = 1
+	testRenameAccount(tc)
 }
 
 // testSync tests various facets of setting the manager sync state.
@@ -1914,57 +1661,43 @@ func testSync(tc *testContext) bool {
 // much of the testing involves having specific state.
 func _TestManager(t *testing.T) {
 	tests := []struct {
-		name                string
-		createdWatchingOnly bool
-		rootKey             *hdkeychain.ExtendedKey
-		privPassphrase      []byte
+		name           string
+		rootKey        *hdkeychain.ExtendedKey
+		privPassphrase []byte
 	}{
 		{
-			name:                "created with seed",
-			createdWatchingOnly: false,
-			rootKey:             rootKey,
-			privPassphrase:      privPassphrase,
-		},
-		{
-			name:                "created watch-only",
-			createdWatchingOnly: true,
-			rootKey:             nil,
-			privPassphrase:      nil,
+			name:           "created with seed",
+			rootKey:        rootKey,
+			privPassphrase: privPassphrase,
 		},
 	}
 
 	for _, test := range tests {
 		// Need to wrap in a call so the defers work correctly.
-		testManagerCase(
-			t, test.name, test.createdWatchingOnly,
-			test.privPassphrase, test.rootKey,
-		)
+		testManagerCase(t, test.name, test.privPassphrase, test.rootKey)
 	}
 }
 
 func testManagerCase(t *testing.T, caseName string,
-	caseCreatedWatchingOnly bool, casePrivPassphrase []byte,
-	caseKey *hdkeychain.ExtendedKey) {
+	casePrivPassphrase []byte, caseKey *hdkeychain.ExtendedKey) {
 
 	teardown, db := emptyDB(t)
 	defer teardown()
 
-	if !caseCreatedWatchingOnly {
-		// Open manager that does not exist to ensure the expected error is
-		// returned.
-		err := walletdb.View(db, func(tx walletdb.ReadTx) error {
-			ns := tx.ReadBucket(waddrmgrNamespaceKey)
-			_, err := Open(ns, pubPassphrase, &chaincfg.MainNetParams)
-			return err
-		})
-		if !checkManagerError(t, "Open non-existent", err, ErrNoExist) {
-			return
-		}
+	// Open manager that does not exist to ensure the expected error is
+	// returned.
+	err := walletdb.View(db, func(tx walletdb.ReadTx) error {
+		ns := tx.ReadBucket(waddrmgrNamespaceKey)
+		_, err := Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		return err
+	})
+	if !checkManagerError(t, "Open non-existent", err, ErrNoExist) {
+		return
 	}
 
 	// Create a new manager.
 	var mgr *Manager
-	err := walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
+	err = walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
 		ns, err := tx.CreateTopLevelBucket(waddrmgrNamespaceKey)
 		if err != nil {
 			return err
@@ -1981,10 +1714,6 @@ func testManagerCase(t *testing.T, caseName string,
 			return err
 		}
 
-		if caseCreatedWatchingOnly {
-			_, err = mgr.NewScopedKeyManager(
-				ns, KeyScopeBIP0044, ScopeAddrMap[KeyScopeBIP0044])
-		}
 		return err
 	})
 	if err != nil {
@@ -2015,32 +1744,6 @@ func testManagerCase(t *testing.T, caseName string,
 		t.Fatalf("(%s) unable to fetch default scope: %v", caseName, err)
 	}
 
-	if caseCreatedWatchingOnly {
-		accountKey := deriveTestAccountKey(t)
-		if accountKey == nil {
-			return
-		}
-
-		acctKeyPub, err := accountKey.Neuter()
-		if err != nil {
-			t.Errorf("(%s) Neuter: unexpected error: %v", caseName, err)
-			return
-		}
-
-		// Create the default account
-		err = walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
-			ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-			_, err = scopedMgr.NewAccountWatchingOnly(
-				ns, defaultAccountName, acctKeyPub, 0, nil,
-			)
-			return err
-		})
-		if err != nil {
-			t.Errorf("NewAccountWatchingOnly: unexpected error: %v", err)
-			return
-		}
-	}
-
 	// Run all of the manager API tests in create mode and close the
 	// manager after they've completed
 	testManagerAPI(&testContext{
@@ -2051,8 +1754,7 @@ func testManagerCase(t *testing.T, caseName string,
 		rootManager:     mgr,
 		internalAccount: 0,
 		create:          true,
-		watchingOnly:    caseCreatedWatchingOnly,
-	}, caseCreatedWatchingOnly)
+	})
 	mgr.Close()
 
 	// Open the manager and run all the tests again in open mode which
@@ -2081,29 +1783,20 @@ func testManagerCase(t *testing.T, caseName string,
 		rootManager:     mgr,
 		internalAccount: 0,
 		create:          false,
-		watchingOnly:    caseCreatedWatchingOnly,
 	}
-	testManagerAPI(tc, caseCreatedWatchingOnly)
-
-	if !caseCreatedWatchingOnly {
-		// Now that the address manager has been tested in both the newly
-		// created and opened modes, test a watching-only version.
-		testConvertWatchingOnly(tc)
-	}
+	testManagerAPI(tc)
 
 	// Ensure that the manager sync state functionality works as expected.
 	testSync(tc)
 
-	if !caseCreatedWatchingOnly {
-		// Unlock the manager so it can be closed with it unlocked to ensure
-		// it works without issue.
-		err = walletdb.View(db, func(tx walletdb.ReadTx) error {
-			ns := tx.ReadBucket(waddrmgrNamespaceKey)
-			return mgr.Unlock(ns, casePrivPassphrase)
-		})
-		if err != nil {
-			t.Errorf("Unlock: unexpected error: %v", err)
-		}
+	// Unlock the manager so it can be closed with it unlocked to ensure
+	// it works without issue.
+	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
+		ns := tx.ReadBucket(waddrmgrNamespaceKey)
+		return mgr.Unlock(ns, casePrivPassphrase)
+	})
+	if err != nil {
+		t.Errorf("Unlock: unexpected error: %v", err)
 	}
 }
 
@@ -2675,142 +2368,6 @@ func TestNewRawAccount(t *testing.T) {
 	err = walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 		return scopedMgr.NewRawAccount(ns, accountNum)
-	})
-	if err != nil {
-		t.Fatalf("unable to create new account: %v", err)
-	}
-
-	testNewRawAccount(t, mgr, db, accountNum, scopedMgr)
-}
-
-// TestNewRawAccountWatchingOnly tests that callers are able to
-// properly create, and use watching-only raw accounts created with
-// only an account number, and not a string which is eventually mapped
-// to an account number.
-func TestNewRawAccountWatchingOnly(t *testing.T) {
-
-	teardown, db := emptyDB(t)
-	defer teardown()
-
-	t.Parallel()
-
-	// We'll start the test by creating a new root manager that will be
-	// used for the duration of the test.
-	var mgr *Manager
-	err := walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
-		ns, err := tx.CreateTopLevelBucket(waddrmgrNamespaceKey)
-		if err != nil {
-			return err
-		}
-		err = Create(
-			ns, nil, pubPassphrase, nil,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
-		)
-		if err != nil {
-			return err
-		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
-		if err != nil {
-			return err
-		}
-
-		_, err = mgr.NewScopedKeyManager(
-			ns, KeyScopeBIP0044, ScopeAddrMap[KeyScopeBIP0044])
-		return err
-	})
-	if err != nil {
-		t.Fatalf("create/open: unexpected error: %v", err)
-	}
-	defer mgr.Close()
-
-	// Now that we have the manager created, we'll fetch one of the default
-	// scopes for usage within this test.
-	scopedMgr, err := mgr.FetchScopedKeyManager(KeyScopeBIP0044)
-	if err != nil {
-		t.Fatalf("unable to fetch scope %v: %v", KeyScopeBIP0044, err)
-	}
-
-	accountKey := deriveTestAccountKey(t)
-	if accountKey == nil {
-		return
-	}
-
-	// With the scoped manager retrieved, we'll attempt to create a new raw
-	// account by number.
-	const accountNum = 1000
-	err = walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
-		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-		return scopedMgr.NewRawAccountWatchingOnly(
-			ns, accountNum, accountKey, 0, nil,
-		)
-	})
-	if err != nil {
-		t.Fatalf("unable to create new account: %v", err)
-	}
-
-	testNewRawAccount(t, mgr, db, accountNum, scopedMgr)
-}
-
-// TestNewRawAccountHybrid is similar to TestNewRawAccountWatchingOnly
-// except that the manager is created normally with a seed. This test
-// shows that watch-only accounts can be added to managers with
-// non-watch-only accounts.
-func TestNewRawAccountHybrid(t *testing.T) {
-
-	teardown, db := emptyDB(t)
-	defer teardown()
-
-	t.Parallel()
-
-	// We'll start the test by creating a new root manager that will be
-	// used for the duration of the test.
-	var mgr *Manager
-	err := walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
-		ns, err := tx.CreateTopLevelBucket(waddrmgrNamespaceKey)
-		if err != nil {
-			return err
-		}
-		err = Create(
-			ns, rootKey, pubPassphrase, privPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
-		)
-		if err != nil {
-			return err
-		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
-		return err
-	})
-	if err != nil {
-		t.Fatalf("create/open: unexpected error: %v", err)
-	}
-	defer mgr.Close()
-
-	// Now that we have the manager created, we'll fetch one of the default
-	// scopes for usage within this test.
-	scopedMgr, err := mgr.FetchScopedKeyManager(KeyScopeBIP0044)
-	if err != nil {
-		t.Fatalf("unable to fetch scope %v: %v", KeyScopeBIP0044, err)
-	}
-
-	accountKey := deriveTestAccountKey(t)
-	if accountKey == nil {
-		return
-	}
-
-	acctKeyPub, err := accountKey.Neuter()
-	if err != nil {
-		t.Errorf("Neuter: unexpected error: %v", err)
-		return
-	}
-
-	// With the scoped manager retrieved, we'll attempt to create a new raw
-	// account by number.
-	const accountNum = 1000
-	err = walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
-		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-		return scopedMgr.NewRawAccountWatchingOnly(
-			ns, accountNum, acctKeyPub, 0, nil,
-		)
 	})
 	if err != nil {
 		t.Fatalf("unable to create new account: %v", err)

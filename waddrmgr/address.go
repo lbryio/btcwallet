@@ -101,8 +101,7 @@ type ManagedPubKeyAddress interface {
 	ExportPubKey() string
 
 	// PrivKey returns the private key for the address.  It can fail if the
-	// address manager is watching-only or locked, or the address does not
-	// have any keys.
+	// address manager is locked, or the address does not have any keys.
 	PrivKey() (*btcec.PrivateKey, error)
 
 	// ExportPrivKey returns the private key associated with the address
@@ -154,12 +153,6 @@ func (a *managedAddress) unlock(key EncryptorDecryptor) ([]byte, error) {
 	// Protect concurrent access to clear text private key.
 	a.privKeyMutex.Lock()
 	defer a.privKeyMutex.Unlock()
-
-	// If the address belongs to a watch-only account, the encrypted private
-	// key won't be present, so we'll return an error.
-	if len(a.privKeyEncrypted) == 0 {
-		return nil, managerError(ErrWatchingOnly, errWatchingOnly, nil)
-	}
 
 	if len(a.privKeyCT) == 0 {
 		privKey, err := key.Decrypt(a.privKeyEncrypted)
@@ -284,14 +277,10 @@ func (a *managedAddress) ExportPubKey() string {
 }
 
 // PrivKey returns the private key for the address.  It can fail if the address
-// manager is watching-only or locked, or the address does not have any keys.
+// manager is locked, or the address does not have any keys.
 //
 // This is part of the ManagedPubKeyAddress interface implementation.
 func (a *managedAddress) PrivKey() (*btcec.PrivateKey, error) {
-	// No private keys are available for a watching-only address manager.
-	if a.manager.rootManager.WatchOnly() {
-		return nil, managerError(ErrWatchingOnly, errWatchingOnly, nil)
-	}
 
 	a.manager.mtx.Lock()
 	defer a.manager.mtx.Unlock()
@@ -623,10 +612,6 @@ func (a *scriptAddress) Used(ns walletdb.ReadBucket) bool {
 //
 // This is part of the ManagedAddress interface implementation.
 func (a *scriptAddress) Script() ([]byte, error) {
-	// No script is available for a watching-only address manager.
-	if a.manager.rootManager.WatchOnly() {
-		return nil, managerError(ErrWatchingOnly, errWatchingOnly, nil)
-	}
 
 	a.manager.mtx.Lock()
 	defer a.manager.mtx.Unlock()
@@ -721,10 +706,6 @@ func (a *witnessScriptAddress) Used(ns walletdb.ReadBucket) bool {
 //
 // This is part of the ManagedAddress interface implementation.
 func (a *witnessScriptAddress) Script() ([]byte, error) {
-	// No script is available for a watching-only address manager.
-	if a.isSecretScript && a.manager.rootManager.WatchOnly() {
-		return nil, managerError(ErrWatchingOnly, errWatchingOnly, nil)
-	}
 
 	a.manager.mtx.Lock()
 	defer a.manager.mtx.Unlock()

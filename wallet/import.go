@@ -268,12 +268,14 @@ func (w *Wallet) importAccountScope(ns walletdb.ReadWriteBucket, name string,
 		}
 	}
 
-	account, err := scopedMgr.NewAccountWatchingOnly(
-		ns, name, accountPubKey, masterKeyFingerprint, addrSchema,
-	)
-	if err != nil {
-		return nil, err
-	}
+	// FIXME
+	// account, err := scopedMgr.NewAccountWatchingOnly(
+	// 	ns, name, accountPubKey, masterKeyFingerprint, addrSchema,
+	// )
+	// if err != nil {
+	// 	return nil, err
+	// }
+	var account uint32
 	return scopedMgr.AccountProperties(ns, account)
 }
 

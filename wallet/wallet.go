@@ -1177,15 +1177,13 @@ out:
 			// private key material, we need to prevent it from
 			// doing so while we are assembling the transaction.
 			release := func() {}
-			if !w.Manager.WatchOnly() {
-				heldUnlock, err := w.holdUnlock()
-				if err != nil {
-					txr.resp <- createTxResponse{nil, err}
-					continue
-				}
-
-				release = heldUnlock.release
+			heldUnlock, err := w.holdUnlock()
+			if err != nil {
+				txr.resp <- createTxResponse{nil, err}
+				continue
 			}
+
+			release = heldUnlock.release
 
 			tx, err := w.txToOutputs(
 				txr.outputs, txr.keyScope, txr.account,
@@ -2640,10 +2638,11 @@ func (w *Wallet) ListUnspent(minconf, maxconf int32,
 			//
 			// TODO: Each case will need updates when watch-only addrs
 			// is added.  For P2PK, P2PKH, and P2SH, the address must be
-			// looked up and not be watching-only.  For multisig, all
-			// pubkeys must belong to the manager with the associated
-			// private key (currently it only checks whether the pubkey
-			// exists, since the private key is required at the moment).
+			// looked up.
+			// For multisig, all pubkeys must belong to the manager with
+			// the associated private key (currently it only checks whether
+			// the pubkey exists, since the private key is required at the
+			// moment).
 			var spendable bool
 		scSwitch:
 			switch sc {
@@ -3199,13 +3198,6 @@ func (w *Wallet) SendOutputs(outputs []*wire.TxOut, keyScope *waddrmgr.KeyScope,
 		return nil, err
 	}
 
-	// If our wallet is read-only, we'll get a transaction with coins
-	// selected but no witness data. In such a case we need to inform our
-	// caller that they'll actually need to go ahead and sign the TX.
-	if w.Manager.WatchOnly() {
-		return createdTx.Tx, ErrTxUnsigned
-	}
-
 	txHash, err := w.reliablyPublishTransaction(createdTx.Tx, label)
 	if err != nil {
 		return nil, err
@@ -3695,19 +3687,7 @@ func CreateWithCallback(db walletdb.DB, pubPass, privPass []byte,
 	birthday time.Time, cb func(walletdb.ReadWriteTx) error) error {
 
 	return create(
-		db, pubPass, privPass, rootKey, params, birthday, false, cb,
-	)
-}
-
-// CreateWatchingOnlyWithCallback is the same as CreateWatchingOnly with an
-// added callback that will be called in the same transaction the wallet
-// structure is initialized.
-func CreateWatchingOnlyWithCallback(db walletdb.DB, pubPass []byte,
-	params *chaincfg.Params, birthday time.Time,
-	cb func(walletdb.ReadWriteTx) error) error {
-
-	return create(
-		db, pubPass, nil, nil, params, birthday, true, cb,
+		db, pubPass, privPass, rootKey, params, birthday, cb,
 	)
 }
 
@@ -3719,31 +3699,16 @@ func Create(db walletdb.DB, pubPass, privPass []byte,
 	birthday time.Time) error {
 
 	return create(
-		db, pubPass, privPass, rootKey, params, birthday, false, nil,
+		db, pubPass, privPass, rootKey, params, birthday, nil,
 	)
 }
-
-// CreateWatchingOnly creates an new watch-only wallet, writing it to
-// an empty database. No root key can be provided as this wallet will be
-// watching only.  Likewise no private passphrase may be provided
-// either.
-func CreateWatchingOnly(db walletdb.DB, pubPass []byte,
-	params *chaincfg.Params, birthday time.Time) error {
-
-	return create(
-		db, pubPass, nil, nil, params, birthday, true, nil,
-	)
-}
-
 func create(db walletdb.DB, pubPass, privPass []byte,
 	rootKey *hdkeychain.ExtendedKey, params *chaincfg.Params,
-	birthday time.Time, isWatchingOnly bool,
+	birthday time.Time,
 	cb func(walletdb.ReadWriteTx) error) error {
 
 	// If no root key was provided, we create one now from a random seed.
-	// But only if this is not a watching-only wallet where the accounts are
-	// created individually from their xpubs.
-	if !isWatchingOnly && rootKey == nil {
+	if rootKey == nil {
 		hdSeed, err := hdkeychain.GenerateSeed(
 			hdkeychain.RecommendedSeedLen,
 		)
@@ -3760,7 +3725,7 @@ func create(db walletdb.DB, pubPass, privPass []byte,
 	}
 
 	// We need a private key if this isn't a watching only wallet.
-	if !isWatchingOnly && rootKey != nil && !rootKey.IsPrivate() {
+	if rootKey != nil && !rootKey.IsPrivate() {
 		return fmt.Errorf("need extended private key for wallet that " +
 			"is not watching only")
 	}

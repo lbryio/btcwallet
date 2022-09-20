@@ -506,9 +506,6 @@ func getAddressInfo(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 		// just break out now if there is an error.
 		script, err := ma.Script()
 		if err != nil {
-			if waddrmgr.IsError(err, waddrmgr.ErrWatchingOnly) {
-				result.IsWatchOnly = true
-			}
 			break
 		}
 		hexScript := hex.EncodeToString(script)
@@ -2054,8 +2051,7 @@ func walletIsLocked(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 }
 
 // walletLock handles a walletlock request by locking the all account
-// wallets, returning an error if any wallet is not encrypted (for example,
-// a watching-only wallet).
+// wallets, returning an error if any wallet is not encrypted.
 func walletLock(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	w.Lock()
 	return nil, nil

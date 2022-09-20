@@ -393,10 +393,7 @@ func (s *ScopedKeyManager) loadAccountInfo(ns walletdb.ReadBucket,
 		return hdkeychain.NewKeyFromString(string(serializedKey))
 	}
 
-	// The wallet will only contain private keys for default accounts if the
-	// wallet's not set up as watch-only and it's been unlocked.
-	watchOnly := s.rootManager.watchOnly()
-	hasPrivateKey := !s.rootManager.isLocked() && !watchOnly
+	hasPrivateKey := !s.rootManager.isLocked()
 
 	// Create the new account info with the known information. The rest of
 	// the fields are filled out below.
@@ -434,29 +431,6 @@ func (s *ScopedKeyManager) loadAccountInfo(ns walletdb.ReadBucket,
 				return nil, managerError(ErrCrypto, str, err)
 			}
 		}
-
-	case *dbWatchOnlyAccountRow:
-		acctInfo = &accountInfo{
-			acctName:             row.name,
-			acctType:             row.acctType,
-			nextExternalIndex:    row.nextExternalIndex,
-			nextInternalIndex:    row.nextInternalIndex,
-			addrSchema:           row.addrSchema,
-			masterKeyFingerprint: row.masterKeyFingerprint,
-		}
-
-		// Use the crypto public key to decrypt the account public
-		// extended key.
-		acctInfo.acctKeyPub, err = decryptKey(
-			s.rootManager.cryptoKeyPub, row.pubKeyEncrypted,
-		)
-		if err != nil {
-			str := fmt.Sprintf("failed to decrypt public key for "+
-				"account %d", account)
-			return nil, managerError(ErrCrypto, str, err)
-		}
-
-		hasPrivateKey = false
 
 	default:
 		str := fmt.Sprintf("unsupported account type %T", row)
@@ -546,8 +520,6 @@ func (s *ScopedKeyManager) AccountProperties(ns walletdb.ReadBucket,
 		props.InternalKeyCount = acctInfo.nextInternalIndex
 		props.AccountPubKey = acctInfo.acctKeyPub
 		props.MasterKeyFingerprint = acctInfo.masterKeyFingerprint
-		props.IsWatchOnly = s.rootManager.WatchOnly() ||
-			acctInfo.acctKeyPriv == nil
 		props.AddrSchema = acctInfo.addrSchema
 
 		// Export the account public key with the correct version
@@ -574,7 +546,6 @@ func (s *ScopedKeyManager) AccountProperties(ns walletdb.ReadBucket,
 		}
 	} else {
 		props.AccountName = ImportedAddrAccountName // reserved, nonchangable
-		props.IsWatchOnly = s.rootManager.WatchOnly()
 
 		// Could be more efficient if this was tracked by the db.
 		var importedKeyCount uint32
@@ -642,8 +613,7 @@ func (s *ScopedKeyManager) DeriveFromKeyPathCache(
 		)
 	}
 
-	watchOnly := s.rootManager.WatchOnly()
-	private := !s.rootManager.IsLocked() && !watchOnly
+	private := !s.rootManager.IsLocked()
 
 	// Now that we have the account information, we can derive the key
 	// directly.
@@ -684,8 +654,7 @@ func (s *ScopedKeyManager) DeriveFromKeyPath(ns walletdb.ReadBucket,
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	watchOnly := s.rootManager.WatchOnly()
-	private := !s.rootManager.IsLocked() && !watchOnly
+	private := !s.rootManager.IsLocked()
 
 	addrKey, _, _, err := s.deriveKeyFromPath(
 		ns, kp.InternalAccount, kp.Branch, kp.Index, private,
@@ -739,7 +708,7 @@ func (s *ScopedKeyManager) chainAddressRowToManaged(ns walletdb.ReadBucket,
 
 	// Since the manger's mutex is assumed to held when invoking this
 	// function, we use the internal isLocked to avoid a deadlock.
-	private := !s.rootManager.isLocked() && !s.rootManager.watchOnly()
+	private := !s.rootManager.isLocked()
 
 	addressKey, acctKey, masterKeyFingerprint, err := s.deriveKeyFromPath(
 		ns, row.account, row.branch, row.index, private,
@@ -981,8 +950,7 @@ func (s *ScopedKeyManager) nextAddresses(ns walletdb.ReadWriteBucket,
 	// Choose the account key to used based on whether the address manager
 	// is locked.
 	acctKey := acctInfo.acctKeyPub
-	watchOnly := s.rootManager.WatchOnly() || len(acctInfo.acctKeyEncrypted) == 0
-	if !s.rootManager.IsLocked() && !watchOnly {
+	if !s.rootManager.IsLocked() {
 		acctKey = acctInfo.acctKeyPriv
 	}
 
@@ -1138,7 +1106,7 @@ func (s *ScopedKeyManager) nextAddresses(ns walletdb.ReadWriteBucket,
 			// Add the new managed address to the list of addresses
 			// that need their private keys derived when the
 			// address manager is next unlocked.
-			if s.rootManager.isLocked() && !watchOnly {
+			if s.rootManager.isLocked() {
 				s.deriveOnUnlock = append(s.deriveOnUnlock, info)
 			}
 		}
@@ -1178,8 +1146,7 @@ func (s *ScopedKeyManager) extendAddresses(ns walletdb.ReadWriteBucket,
 	// Choose the account key to used based on whether the address manager
 	// is locked.
 	acctKey := acctInfo.acctKeyPub
-	watchOnly := s.rootManager.WatchOnly() || acctInfo.acctKeyPriv != nil
-	if !s.rootManager.IsLocked() && !watchOnly {
+	if !s.rootManager.IsLocked() {
 		acctKey = acctInfo.acctKeyPriv
 	}
 
@@ -1328,7 +1295,7 @@ func (s *ScopedKeyManager) extendAddresses(ns walletdb.ReadWriteBucket,
 		// Add the new managed address to the list of addresses that
 		// need their private keys derived when the address manager is
 		// next unlocked.
-		if s.rootManager.IsLocked() && !watchOnly {
+		if s.rootManager.IsLocked() {
 			s.deriveOnUnlock = append(s.deriveOnUnlock, info)
 		}
 	}
@@ -1489,9 +1456,6 @@ func (s *ScopedKeyManager) LastInternalAddress(ns walletdb.ReadBucket,
 // number *directly*, rather than taking a string name for the account, then
 // mapping that to the next highest account number.
 func (s *ScopedKeyManager) NewRawAccount(ns walletdb.ReadWriteBucket, number uint32) error {
-	if s.rootManager.WatchOnly() {
-		return managerError(ErrWatchingOnly, errWatchingOnly, nil)
-	}
 
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -1507,45 +1471,12 @@ func (s *ScopedKeyManager) NewRawAccount(ns walletdb.ReadWriteBucket, number uin
 	return s.newAccount(ns, number, name)
 }
 
-// NewRawAccountWatchingOnly creates a new watching only account for the scoped
-// manager. This method differs from the NewAccountWatchingOnly method in that
-// this method takes the account number *directly*, rather than taking a string
-// name for the account, then mapping that to the next highest account number.
-//
-// The master key fingerprint denotes the fingerprint of the root key
-// corresponding to the account public key (also known as the key with
-// derivation path m/). This may be required by some hardware wallets for proper
-// identification and signing.
-//
-// An optional address schema may also be provided to override the
-// ScopedKeyManager's address schema. This will affect all addresses derived
-// from the account.
-func (s *ScopedKeyManager) NewRawAccountWatchingOnly(
-	ns walletdb.ReadWriteBucket, number uint32,
-	pubKey *hdkeychain.ExtendedKey, masterKeyFingerprint uint32,
-	addrSchema *ScopeAddrSchema) error {
-
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	// As this is an ad hoc account that may not follow our normal linear
-	// derivation, we'll create a new name for this account based off of
-	// the account number.
-	name := fmt.Sprintf("act:%v", number)
-	return s.newAccountWatchingOnly(
-		ns, number, name, pubKey, masterKeyFingerprint, addrSchema,
-	)
-}
-
 // NewAccount creates and returns a new account stored in the manager based on
 // the given account name.  If an account with the same name already exists,
 // ErrDuplicateAccount will be returned.  Since creating a new account requires
 // access to the cointype keys (from which extended account keys are derived),
 // it requires the manager to be unlocked.
 func (s *ScopedKeyManager) NewAccount(ns walletdb.ReadWriteBucket, name string) (uint32, error) {
-	if s.rootManager.WatchOnly() {
-		return 0, managerError(ErrWatchingOnly, errWatchingOnly, nil)
-	}
 
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -1654,95 +1585,6 @@ func (s *ScopedKeyManager) newAccount(ns walletdb.ReadWriteBucket,
 	return putLastAccount(ns, &s.scope, account)
 }
 
-// NewAccountWatchingOnly is similar to NewAccount, but for watch-only wallets.
-//
-// The master key fingerprint denotes the fingerprint of the root key
-// corresponding to the account public key (also known as the key with
-// derivation path m/). This may be required by some hardware wallets for proper
-// identification and signing.
-//
-// An optional address schema may also be provided to override the
-// ScopedKeyManager's address schema. This will affect all addresses derived
-// from the account.
-func (s *ScopedKeyManager) NewAccountWatchingOnly(ns walletdb.ReadWriteBucket,
-	name string, pubKey *hdkeychain.ExtendedKey, masterKeyFingerprint uint32,
-	addrSchema *ScopeAddrSchema) (uint32, error) {
-
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	// Fetch latest account, and create a new account in the same
-	// transaction Fetch the latest account number to generate the next
-	// account number
-	account, err := fetchLastAccount(ns, &s.scope)
-	if err != nil {
-		return 0, err
-	}
-	account++
-
-	// With the name validated, we'll create a new account for the new
-	// contiguous account.
-	err = s.newAccountWatchingOnly(
-		ns, account, name, pubKey, masterKeyFingerprint, addrSchema,
-	)
-	if err != nil {
-		return 0, err
-	}
-
-	return account, nil
-}
-
-// newAccountWatchingOnly is similar to newAccount, but for watching-only wallets.
-//
-// The master key fingerprint denotes the fingerprint of the root key
-// corresponding to the account public key (also known as the key with
-// derivation path m/). This may be required by some hardware wallets for proper
-// identification and signing.
-//
-// An optional address schema may also be provided to override the
-// ScopedKeyManager's address schema. This will affect all addresses derived
-// from the account.
-//
-// NOTE: This function MUST be called with the manager lock held for writes.
-func (s *ScopedKeyManager) newAccountWatchingOnly(ns walletdb.ReadWriteBucket,
-	account uint32, name string, pubKey *hdkeychain.ExtendedKey,
-	masterKeyFingerprint uint32, addrSchema *ScopeAddrSchema) error {
-
-	// Validate the account name.
-	if err := ValidateAccountName(name); err != nil {
-		return err
-	}
-
-	// Check that account with the same name does not exist
-	_, err := s.lookupAccount(ns, name)
-	if err == nil {
-		str := fmt.Sprintf("account with the same name already exists")
-		return managerError(ErrDuplicateAccount, str, err)
-	}
-
-	// Encrypt the default account keys with the associated crypto keys.
-	acctPubEnc, err := s.rootManager.cryptoKeyPub.Encrypt(
-		[]byte(pubKey.String()),
-	)
-	if err != nil {
-		str := "failed to encrypt public key for account"
-		return managerError(ErrCrypto, str, err)
-	}
-
-	// We have the encrypted account extended keys, so save them to the
-	// database
-	err = putWatchOnlyAccountInfo(
-		ns, &s.scope, account, acctPubEnc, masterKeyFingerprint, 0, 0,
-		name, addrSchema,
-	)
-	if err != nil {
-		return err
-	}
-
-	// Save last account metadata
-	return putLastAccount(ns, &s.scope, account)
-}
-
 // RenameAccount renames an account stored in the manager based on the given
 // account number with the given name.  If an account with the same name
 // already exists, ErrDuplicateAccount will be returned.
@@ -1796,21 +1638,6 @@ func (s *ScopedKeyManager) RenameAccount(ns walletdb.ReadWriteBucket,
 			return err
 		}
 
-	case *dbWatchOnlyAccountRow:
-		// Remove the old name key from the account name index.
-		if err = deleteAccountNameIndex(ns, &s.scope, row.name); err != nil {
-			return err
-		}
-
-		err = putWatchOnlyAccountInfo(
-			ns, &s.scope, account, row.pubKeyEncrypted,
-			row.masterKeyFingerprint, row.nextExternalIndex,
-			row.nextInternalIndex, name, row.addrSchema,
-		)
-		if err != nil {
-			return err
-		}
-
 	default:
 		str := fmt.Sprintf("unsupported account type %T", row)
 		return managerError(ErrDatabase, str, nil)
@@ -1834,14 +1661,8 @@ func (s *ScopedKeyManager) RenameAccount(ns walletdb.ReadWriteBucket,
 // All imported addresses will be part of the account defined by the
 // ImportedAddrAccount constant.
 //
-// NOTE: When the address manager is watching-only, the private key itself will
-// not be stored or available since it is private data.  Instead, only the
-// public key will be stored.  This means it is paramount the private key is
-// kept elsewhere as the watching-only address manager will NOT ever have access
-// to it.
-//
-// This function will return an error if the address manager is locked and not
-// watching-only, or not for the same network as the key trying to be imported.
+// This function will return an error if the address manager is locked, or
+// not for the same network as the key trying to be imported.
 // It will also return an error if the address already exists.  Any other
 // errors returned are generally unexpected.
 func (s *ScopedKeyManager) ImportPrivateKey(ns walletdb.ReadWriteBucket,
@@ -1860,25 +1681,23 @@ func (s *ScopedKeyManager) ImportPrivateKey(ns walletdb.ReadWriteBucket,
 	defer s.mtx.Unlock()
 
 	// The manager must be unlocked to encrypt the imported private key.
-	if s.rootManager.IsLocked() && !s.rootManager.WatchOnly() {
+	if s.rootManager.IsLocked() {
 		return nil, managerError(ErrLocked, errLocked, nil)
 	}
 
-	// Encrypt the private key when not a watching-only address manager.
+	// Encrypt the private key.
 	var encryptedPrivKey []byte
-	if !s.rootManager.WatchOnly() {
-		privKeyBytes := wif.PrivKey.Serialize()
-		var err error
-		encryptedPrivKey, err = s.rootManager.cryptoKeyPriv.Encrypt(privKeyBytes)
-		zero.Bytes(privKeyBytes)
-		if err != nil {
-			str := fmt.Sprintf("failed to encrypt private key for %x",
-				wif.PrivKey.PubKey().SerializeCompressed())
-			return nil, managerError(ErrCrypto, str, err)
-		}
+	privKeyBytes := wif.PrivKey.Serialize()
+	var err error
+	encryptedPrivKey, err = s.rootManager.cryptoKeyPriv.Encrypt(privKeyBytes)
+	zero.Bytes(privKeyBytes)
+	if err != nil {
+		str := fmt.Sprintf("failed to encrypt private key for %x",
+			wif.PrivKey.PubKey().SerializeCompressed())
+		return nil, managerError(ErrCrypto, str, err)
 	}
 
-	err := s.importPublicKey(
+	err = s.importPublicKey(
 		ns, wif.SerializePubKey(), encryptedPrivKey,
 		s.addrSchema.ExternalAddrType, bs,
 	)
@@ -1887,11 +1706,7 @@ func (s *ScopedKeyManager) ImportPrivateKey(ns walletdb.ReadWriteBucket,
 	}
 
 	// Create a new managed address based on the imported address.
-	if !s.rootManager.WatchOnly() {
-		return s.toImportedPrivateManagedAddress(wif)
-	}
-	pubKey := (*btcec.PublicKey)(&wif.PrivKey.PublicKey)
-	return s.toImportedPublicManagedAddress(pubKey, wif.CompressPubKey)
+	return s.toImportedPrivateManagedAddress(wif)
 }
 
 // ImportPublicKey imports a public key into the address manager.
@@ -2051,12 +1866,8 @@ func (s *ScopedKeyManager) toImportedPublicManagedAddress(
 // All imported script addresses will be part of the account defined by the
 // ImportedAddrAccount constant.
 //
-// When the address manager is watching-only, the script itself will not be
-// stored or available since it is considered private data.
-//
-// This function will return an error if the address manager is locked and not
-// watching-only, or the address already exists.  Any other errors returned are
-// generally unexpected.
+// This function will return an error if the address manager is locked, or the
+// address already exists.  Any other errors returned are generally unexpected.
 func (s *ScopedKeyManager) ImportScript(ns walletdb.ReadWriteBucket,
 	script []byte, bs *BlockStamp) (ManagedScriptAddress, error) {
 
@@ -2069,12 +1880,8 @@ func (s *ScopedKeyManager) ImportScript(ns walletdb.ReadWriteBucket,
 // All imported script addresses will be part of the account defined by the
 // ImportedAddrAccount constant.
 //
-// When the address manager is watching-only, the script itself will not be
-// stored or available since it is considered private data.
-//
-// This function will return an error if the address manager is locked and not
-// watching-only, or the address already exists.  Any other errors returned are
-// generally unexpected.
+// This function will return an error if the address manager is locked, or the
+// address already exists.  Any other errors returned are generally unexpected.
 func (s *ScopedKeyManager) ImportWitnessScript(ns walletdb.ReadWriteBucket,
 	script []byte, bs *BlockStamp, witnessVersion byte,
 	isSecretScript bool) (ManagedScriptAddress, error) {
@@ -2099,13 +1906,6 @@ func (s *ScopedKeyManager) importScriptAddress(ns walletdb.ReadWriteBucket,
 		return nil, managerError(ErrLocked, errLocked, nil)
 	}
 
-	// A secret script can only be used with a non-watch only manager. If
-	// a wallet is watch-only then the script must be encrypted with the
-	// public encryption key.
-	if isSecretScript && s.rootManager.WatchOnly() {
-		return nil, managerError(ErrWatchingOnly, errWatchingOnly, nil)
-	}
-
 	// Witness script addresses use a SHA256.
 	var scriptHash []byte
 	switch addrType {
@@ -2124,8 +1924,8 @@ func (s *ScopedKeyManager) importScriptAddress(ns walletdb.ReadWriteBucket,
 		return nil, managerError(ErrDuplicateAddress, str, nil)
 	}
 
-	// Encrypt the script hash using the crypto public key so it is
-	// accessible when the address manager is locked or watching-only.
+	// Encrypt the script hash using the crypto public key so it not
+	// accessible when the address manager is locked.
 	encryptedHash, err := s.rootManager.cryptoKeyPub.Encrypt(scriptHash)
 	if err != nil {
 		str := fmt.Sprintf("failed to encrypt script hash %x",
@@ -2195,9 +1995,9 @@ func (s *ScopedKeyManager) importScriptAddress(ns walletdb.ReadWriteBucket,
 	}
 
 	// Create a new managed address based on the imported script.  Also,
-	// when not a watching-only address manager, make a copy of the script
-	// since it will be cleared on lock and the script the caller passed
-	// should not be cleared out from under the caller.
+	// make a copy of the script since it will be cleared on lock and the
+	// script the caller passed // should not be cleared out from under the
+	// caller.
 	var (
 		managedAddr    ManagedScriptAddress
 		baseScriptAddr *baseScriptAddress
@@ -2388,22 +2188,6 @@ func (s *ScopedKeyManager) ForEachInternalActiveAddress(ns walletdb.ReadBucket,
 	}
 
 	return nil
-}
-
-// IsWatchOnlyAccount determines if the given account belonging to this scoped
-// manager is set up as watch-only.
-func (s *ScopedKeyManager) IsWatchOnlyAccount(ns walletdb.ReadBucket,
-	account uint32) (bool, error) {
-
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	acctInfo, err := s.loadAccountInfo(ns, account)
-	if err != nil {
-		return false, err
-	}
-
-	return acctInfo.acctKeyPriv == nil, nil
 }
 
 // cloneKeyWithVersion clones an extended key to use the version corresponding

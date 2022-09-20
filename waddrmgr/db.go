@@ -6,7 +6,6 @@
 package waddrmgr
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -85,12 +84,6 @@ const (
 	// database. This is an account that re-uses the key derivation schema
 	// of BIP0044-like accounts.
 	accountDefault accountType = 0 // not iota as they need to be stable
-
-	// accountWatchOnly is the account type used for storing watch-only
-	// accounts within the database. This is an account that re-uses the key
-	// derivation schema of BIP0044-like accounts and does not store private
-	// keys.
-	accountWatchOnly accountType = 1
 )
 
 // dbAccountRow houses information stored about an account in the database.
@@ -108,18 +101,6 @@ type dbDefaultAccountRow struct {
 	nextExternalIndex uint32
 	nextInternalIndex uint32
 	name              string
-}
-
-// dbWatchOnlyAccountRow houses additional information stored about a watch-only
-// account in the databse.
-type dbWatchOnlyAccountRow struct {
-	dbAccountRow
-	pubKeyEncrypted      []byte
-	masterKeyFingerprint uint32
-	nextExternalIndex    uint32
-	nextInternalIndex    uint32
-	name                 string
-	addrSchema           *ScopeAddrSchema
 }
 
 // dbAddressRow houses common information stored about an address in the
@@ -298,7 +279,6 @@ var (
 	cryptoPrivKeyName   = []byte("cpriv")
 	cryptoPubKeyName    = []byte("cpub")
 	cryptoScriptKeyName = []byte("cscript")
-	watchingOnlyName    = []byte("watchonly")
 
 	// Sync related key names (sync bucket).
 	syncedToName              = []byte("syncedto")
@@ -439,9 +419,7 @@ func putManagerVersion(ns walletdb.ReadWriteBucket, version uint32) error {
 }
 
 // fetchMasterKeyParams loads the master key parameters needed to derive them
-// (when given the correct user-supplied passphrase) from the database.  Either
-// returned value can be nil, but in practice only the private key params will
-// be nil for a watching-only database.
+// (when given the correct user-supplied passphrase) from the database.
 func fetchMasterKeyParams(ns walletdb.ReadBucket) ([]byte, []byte, error) {
 	bucket := ns.NestedReadBucket(mainBucketName)
 
@@ -604,8 +582,7 @@ func fetchMasterHDKeys(ns walletdb.ReadBucket) ([]byte, []byte) {
 
 // fetchCryptoKeys loads the encrypted crypto keys which are in turn used to
 // protect the extended keys, imported keys, and scripts.  Any of the returned
-// values can be nil, but in practice only the crypto private and script keys
-// will be nil for a watching-only database.
+// values can be nil
 func fetchCryptoKeys(ns walletdb.ReadBucket) ([]byte, []byte, []byte, error) {
 	bucket := ns.NestedReadBucket(mainBucketName)
 
@@ -669,35 +646,6 @@ func putCryptoKeys(ns walletdb.ReadWriteBucket, pubKeyEncrypted, privKeyEncrypte
 		}
 	}
 
-	return nil
-}
-
-// fetchWatchingOnly loads the watching-only flag from the database.
-func fetchWatchingOnly(ns walletdb.ReadBucket) (bool, error) {
-	bucket := ns.NestedReadBucket(mainBucketName)
-
-	buf := bucket.Get(watchingOnlyName)
-	if len(buf) != 1 {
-		str := "malformed watching-only flag stored in database"
-		return false, managerError(ErrDatabase, str, nil)
-	}
-
-	return buf[0] != 0, nil
-}
-
-// putWatchingOnly stores the watching-only flag to the database.
-func putWatchingOnly(ns walletdb.ReadWriteBucket, watchingOnly bool) error {
-	bucket := ns.NestedReadWriteBucket(mainBucketName)
-
-	var encoded byte
-	if watchingOnly {
-		encoded = 1
-	}
-
-	if err := bucket.Put(watchingOnlyName, []byte{encoded}); err != nil {
-		str := "failed to store watching only flag"
-		return managerError(ErrDatabase, str, err)
-	}
 	return nil
 }
 
@@ -815,159 +763,6 @@ func serializeDefaultAccountRow(encryptedPubKey, encryptedPrivKey []byte,
 	offset += 4
 	copy(rawData[offset:offset+nameLen], name)
 	return rawData
-}
-
-// deserializeWatchOnlyAccountRow deserializes the raw data from the passed
-// account row as a watch-only account.
-func deserializeWatchOnlyAccountRow(accountID []byte,
-	row *dbAccountRow) (*dbWatchOnlyAccountRow, error) {
-
-	// The serialized BIP0044 watch-only account raw data format is:
-	//   <encpubkeylen><encpubkey><masterkeyfingerprint><nextextidx>
-	//   <nextintidx><namelen><name>
-	//
-	// 4 bytes encrypted pubkey len + encrypted pubkey + 4 bytes master key
-	// fingerprint + 4 bytes next external index + 4 bytes next internal
-	// index + 4 bytes name len + name + 1 byte addr schema exists + 2 bytes
-	// addr schema (if exists)
-
-	// Given the above, the length of the entry must be at a minimum
-	// the constant value sizes.
-	if len(row.rawData) < 21 {
-		str := fmt.Sprintf("malformed serialized watch-only account "+
-			"for key %x", accountID)
-		return nil, managerError(ErrDatabase, str, nil)
-	}
-
-	retRow := dbWatchOnlyAccountRow{
-		dbAccountRow: *row,
-	}
-	r := bytes.NewReader(row.rawData)
-
-	var pubLen uint32
-	err := binary.Read(r, binary.LittleEndian, &pubLen)
-	if err != nil {
-		return nil, err
-	}
-	retRow.pubKeyEncrypted = make([]byte, pubLen)
-	err = binary.Read(r, binary.LittleEndian, &retRow.pubKeyEncrypted)
-	if err != nil {
-		return nil, err
-	}
-
-	err = binary.Read(r, binary.LittleEndian, &retRow.masterKeyFingerprint)
-	if err != nil {
-		return nil, err
-	}
-
-	err = binary.Read(r, binary.LittleEndian, &retRow.nextExternalIndex)
-	if err != nil {
-		return nil, err
-	}
-	err = binary.Read(r, binary.LittleEndian, &retRow.nextInternalIndex)
-	if err != nil {
-		return nil, err
-	}
-
-	var nameLen uint32
-	err = binary.Read(r, binary.LittleEndian, &nameLen)
-	if err != nil {
-		return nil, err
-	}
-	name := make([]byte, nameLen)
-	err = binary.Read(r, binary.LittleEndian, &name)
-	if err != nil {
-		return nil, err
-	}
-	retRow.name = string(name)
-
-	var addrSchemaExists bool
-	err = binary.Read(r, binary.LittleEndian, &addrSchemaExists)
-	if err != nil {
-		return nil, err
-	}
-	if addrSchemaExists {
-		var addrSchemaBytes [2]byte
-		err = binary.Read(r, binary.LittleEndian, &addrSchemaBytes)
-		if err != nil {
-			return nil, err
-		}
-		retRow.addrSchema = scopeSchemaFromBytes(addrSchemaBytes[:])
-	}
-
-	return &retRow, nil
-}
-
-// serializeWatchOnlyAccountRow returns the serialization of the raw data field
-// for a watch-only account.
-func serializeWatchOnlyAccountRow(encryptedPubKey []byte, masterKeyFingerprint,
-	nextExternalIndex, nextInternalIndex uint32, name string,
-	addrSchema *ScopeAddrSchema) ([]byte, error) {
-
-	// The serialized BIP0044 account raw data format is:
-	//   <encpubkeylen><encpubkey><masterkeyfingerprint><nextextidx>
-	//   <nextintidx><namelen><name>
-	//
-	// 4 bytes encrypted pubkey len + encrypted pubkey + 4 bytes master key
-	// fingerprint + 4 bytes next external index + 4 bytes next internal
-	// index + 4 bytes name len + name + 1 byte addr schema exists + 2 bytes
-	// addr schema (if exists)
-	pubLen := uint32(len(encryptedPubKey))
-	nameLen := uint32(len(name))
-
-	addrSchemaExists := addrSchema != nil
-	var addrSchemaBytes []byte
-	if addrSchemaExists {
-		addrSchemaBytes = scopeSchemaToBytes(addrSchema)
-	}
-
-	bufLen := 21 + pubLen + nameLen + uint32(len(addrSchemaBytes))
-	buf := bytes.NewBuffer(make([]byte, 0, bufLen))
-
-	err := binary.Write(buf, binary.LittleEndian, pubLen)
-	if err != nil {
-		return nil, err
-	}
-	err = binary.Write(buf, binary.LittleEndian, encryptedPubKey)
-	if err != nil {
-		return nil, err
-	}
-
-	err = binary.Write(buf, binary.LittleEndian, masterKeyFingerprint)
-	if err != nil {
-		return nil, err
-	}
-
-	err = binary.Write(buf, binary.LittleEndian, nextExternalIndex)
-	if err != nil {
-		return nil, err
-	}
-	err = binary.Write(buf, binary.LittleEndian, nextInternalIndex)
-	if err != nil {
-		return nil, err
-	}
-
-	err = binary.Write(buf, binary.LittleEndian, nameLen)
-	if err != nil {
-		return nil, err
-	}
-	err = binary.Write(buf, binary.LittleEndian, []byte(name))
-	if err != nil {
-		return nil, err
-	}
-
-	err = binary.Write(buf, binary.LittleEndian, addrSchemaExists)
-	if err != nil {
-		return nil, err
-	}
-	if addrSchemaExists {
-		err = binary.Write(buf, binary.LittleEndian, addrSchemaBytes)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return buf.Bytes(), nil
 }
 
 // forEachKeyScope calls the given function for each known manager scope
@@ -1108,8 +903,6 @@ func fetchAccountInfo(ns walletdb.ReadBucket, scope *KeyScope,
 	switch row.acctType {
 	case accountDefault:
 		return deserializeDefaultAccountRow(accountID, row)
-	case accountWatchOnly:
-		return deserializeWatchOnlyAccountRow(accountID, row)
 	}
 
 	str := fmt.Sprintf("unsupported account type '%d'", row.acctType)
@@ -1265,30 +1058,6 @@ func putDefaultAccountInfo(ns walletdb.ReadWriteBucket, scope *KeyScope,
 
 	acctRow := dbAccountRow{
 		acctType: accountDefault,
-		rawData:  rawData,
-	}
-	return putAccountInfo(ns, scope, account, &acctRow, name)
-}
-
-// putWatchOnlyAccountInfo stores the provided watch-only account information to
-// the database.
-func putWatchOnlyAccountInfo(ns walletdb.ReadWriteBucket, scope *KeyScope,
-	account uint32, encryptedPubKey []byte, masterKeyFingerprint,
-	nextExternalIndex, nextInternalIndex uint32, name string,
-	addrSchema *ScopeAddrSchema) error {
-
-	rawData, err := serializeWatchOnlyAccountRow(
-		encryptedPubKey, masterKeyFingerprint, nextExternalIndex,
-		nextInternalIndex, name, addrSchema,
-	)
-	if err != nil {
-		return err
-	}
-
-	// TODO(roasbeef): pass scope bucket directly??
-
-	acctRow := dbAccountRow{
-		acctType: accountWatchOnly,
 		rawData:  rawData,
 	}
 	return putAccountInfo(ns, scope, account, &acctRow, name)
@@ -1763,32 +1532,6 @@ func putChainedAddress(ns walletdb.ReadWriteBucket, scope *KeyScope,
 			arow.pubKeyEncrypted, arow.privKeyEncrypted,
 			nextExternalIndex, nextInternalIndex, arow.name,
 		)
-
-	case accountWatchOnly:
-		arow, err := deserializeWatchOnlyAccountRow(accountID, row)
-		if err != nil {
-			return err
-		}
-
-		// Increment the appropriate next index depending on whether the
-		// branch is internal or external.
-		nextExternalIndex := arow.nextExternalIndex
-		nextInternalIndex := arow.nextInternalIndex
-		if branch == InternalBranch {
-			nextInternalIndex = index + 1
-		} else {
-			nextExternalIndex = index + 1
-		}
-
-		// Reserialize the account with the updated index and store it.
-		row.rawData, err = serializeWatchOnlyAccountRow(
-			arow.pubKeyEncrypted, arow.masterKeyFingerprint,
-			nextExternalIndex, nextInternalIndex, arow.name,
-			arow.addrSchema,
-		)
-		if err != nil {
-			return err
-		}
 	}
 
 	err = bucket.Put(accountID, serializeAccountRow(row))
@@ -1982,12 +1725,6 @@ func forEachActiveAddress(ns walletdb.ReadBucket, scope *KeyScope,
 }
 
 // deletePrivateKeys removes all private key material from the database.
-//
-// NOTE: Care should be taken when calling this function.  It is primarily
-// intended for use in converting to a watching-only copy.  Removing the private
-// keys from the main database without also marking it watching-only will result
-// in an unusable database.  It will also make any imported scripts and private
-// keys unrecoverable unless there is a backup copy available.
 func deletePrivateKeys(ns walletdb.ReadWriteBucket) error {
 	bucket := ns.NestedReadWriteBucket(mainBucketName)
 
@@ -2058,9 +1795,6 @@ func deletePrivateKeys(ns walletdb.ReadWriteBucket) error {
 					str := "failed to delete account private key"
 					return managerError(ErrDatabase, str, err)
 				}
-
-			// Watch-only accounts don't contain any private keys.
-			case accountWatchOnly:
 			}
 
 			return nil

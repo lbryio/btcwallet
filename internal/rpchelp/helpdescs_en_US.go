@@ -422,12 +422,6 @@ var helpDescsEnUS = map[string]string{
 		"The wallet must be unlocked for this request to succeed.",
 	"createnewaccount-account": "Name of the new account",
 
-	// ExportWatchingWalletCmd help.
-	"exportwatchingwallet--synopsis": "Creates and returns a duplicate of the wallet database without any private keys to be used as a watching-only wallet.",
-	"exportwatchingwallet-account":   "Unused (must be unset or \"*\")",
-	"exportwatchingwallet-download":  "Unused",
-	"exportwatchingwallet--result0":  "The watching-only database encoded as a base64 string",
-
 	// GetBestBlockCmd help.
 	"getbestblock--synopsis": "Returns the hash and height of the newest block in the best chain that wallet has finished syncing with.",
 

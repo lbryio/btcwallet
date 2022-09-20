@@ -137,23 +137,12 @@ func _TestImportAccount(t *testing.T) {
 			w, cleanup := testWallet(t)
 			defer cleanup()
 
-			testImportAccount(t, w, tc, false, tc.name)
-		})
-
-		name := tc.name + " watch-only"
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			w, cleanup := testWalletWatchingOnly(t)
-			defer cleanup()
-
-			testImportAccount(t, w, tc, true, name)
+			testImportAccount(t, w, tc, tc.name)
 		})
 	}
 }
 
-func testImportAccount(t *testing.T, w *Wallet, tc *testCase, watchOnly bool,
-	name string) {
+func testImportAccount(t *testing.T, w *Wallet, tc *testCase, name string) {
 
 	// First derive the master public key of the account we want to import.
 	root, err := hdkeychain.NewKeyFromString(tc.masterPriv)
@@ -208,9 +197,6 @@ func testImportAccount(t *testing.T, w *Wallet, tc *testCase, watchOnly bool,
 	// If the wallet is watch only, there is no default account and our
 	// imported account will be index 0.
 	firstAccountIndex := uint32(1)
-	if watchOnly {
-		firstAccountIndex = 0
-	}
 
 	// We should have 3 additional accounts now.
 	acctResult, err := w.Accounts(tc.expectedScope)
@@ -220,7 +206,6 @@ func testImportAccount(t *testing.T, w *Wallet, tc *testCase, watchOnly bool,
 	// Validate the state of the accounts.
 	require.Equal(t, firstAccountIndex, acct1.AccountNumber)
 	require.Equal(t, name+"1", acct1.AccountName)
-	require.Equal(t, true, acct1.IsWatchOnly)
 	require.Equal(t, root.ParentFingerprint(), acct1.MasterKeyFingerprint)
 	require.NotNil(t, acct1.AccountPubKey)
 	require.Equal(t, acct1Pub.String(), acct1.AccountPubKey.String())
@@ -230,7 +215,6 @@ func testImportAccount(t *testing.T, w *Wallet, tc *testCase, watchOnly bool,
 
 	require.Equal(t, firstAccountIndex+1, acct2.AccountNumber)
 	require.Equal(t, name+"2", acct2.AccountName)
-	require.Equal(t, true, acct2.IsWatchOnly)
 	require.Equal(t, root.ParentFingerprint(), acct2.MasterKeyFingerprint)
 	require.NotNil(t, acct2.AccountPubKey)
 	require.Equal(t, acct2Pub.String(), acct2.AccountPubKey.String())
@@ -255,7 +239,6 @@ func testImportAccount(t *testing.T, w *Wallet, tc *testCase, watchOnly bool,
 
 	// Make sure we can't get private keys for the imported accounts.
 	_, err = w.DumpWIFPrivateKey(intAddr)
-	require.True(t, waddrmgr.IsError(err, waddrmgr.ErrWatchingOnly))
 
 	// Get the address info for the single key we imported.
 	switch tc.addrType {

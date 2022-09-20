@@ -29,10 +29,6 @@ var (
 	// errLocked is the common error description used for the ErrLocked
 	// error code.
 	errLocked = "address manager is locked"
-
-	// errWatchingOnly is the common error description used for the
-	// ErrWatchingOnly error code.
-	errWatchingOnly = "address manager is watching-only"
 )
 
 // ErrorCode identifies a kind of error.
@@ -85,11 +81,6 @@ const (
 	// ErrLocked indicates that an operation, which requires the account
 	// manager to be unlocked, was requested on a locked account manager.
 	ErrLocked
-
-	// ErrWatchingOnly indicates that an operation, which requires the
-	// account manager to have access to private data, was requested on
-	// a watching-only account manager.
-	ErrWatchingOnly
 
 	// ErrInvalidAccount indicates that the requested account is not valid.
 	ErrInvalidAccount
@@ -157,7 +148,6 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrCoinTypeTooHigh:   "ErrCoinTypeTooHigh",
 	ErrAccountNumTooHigh: "ErrAccountNumTooHigh",
 	ErrLocked:            "ErrLocked",
-	ErrWatchingOnly:      "ErrWatchingOnly",
 	ErrInvalidAccount:    "ErrInvalidAccount",
 	ErrAddressNotFound:   "ErrAddressNotFound",
 	ErrAccountNotFound:   "ErrAccountNotFound",
