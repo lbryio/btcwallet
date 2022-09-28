@@ -36,16 +36,6 @@ import (
 )
 
 const (
-	// InsecurePubPassphrase is the default outer encryption passphrase used
-	// for public data (everything but private keys).  Using a non-default
-	// public passphrase can prevent an attacker without the public
-	// passphrase from discovering all past and future wallet addresses if
-	// they gain access to the wallet database.
-	//
-	// NOTE: at time of writing, public encryption only applies to public
-	// data in the waddrmgr namespace.  Transactions are not yet encrypted.
-	InsecurePubPassphrase = "public"
-
 	// recoveryBatchSize is the default number of blocks that will be
 	// scanned successively by the recovery manager, in the event that the
 	// wallet is started in recovery mode.
@@ -99,8 +89,6 @@ const (
 // complete wallet.  It contains the Armory-style key store
 // addresses and keys),
 type Wallet struct {
-	publicPassphrase []byte
-
 	// Data stores
 	db      walletdb.DB
 	Manager *waddrmgr.Manager
@@ -134,7 +122,6 @@ type Wallet struct {
 	holdUnlockRequests chan chan heldUnlock
 	lockState          chan bool
 	changePassphrase   chan changePassphraseRequest
-	changePassphrases  chan changePassphrasesRequest
 
 	NtfnServer *NotificationServer
 
@@ -703,7 +690,7 @@ func (w *Wallet) recovery(chainClient chain.Interface,
 	// that a wallet rescan will be performed from the wallet's tip, which
 	// will be of bestHeight after completing the recovery process.
 
-	pass, err := prompt.ProvidePrivPassphrase()
+	pass, err := prompt.ProvidePassphrase()
 	if err != nil {
 		return err
 	}
@@ -1188,14 +1175,7 @@ type (
 
 	changePassphraseRequest struct {
 		old, new []byte
-		private  bool
 		err      chan error
-	}
-
-	changePassphrasesRequest struct {
-		publicOld, publicNew   []byte
-		privateOld, privateNew []byte
-		err                    chan error
 	}
 
 	// heldUnlock is a tool to prevent the wallet from automatically
@@ -1236,27 +1216,8 @@ out:
 			err := walletdb.Update(w.db, func(tx walletdb.ReadWriteTx) error {
 				addrmgrNs := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 				return w.Manager.ChangePassphrase(
-					addrmgrNs, req.old, req.new, req.private,
+					addrmgrNs, req.old, req.new,
 					&waddrmgr.DefaultScryptOptions,
-				)
-			})
-			req.err <- err
-			continue
-
-		case req := <-w.changePassphrases:
-			err := walletdb.Update(w.db, func(tx walletdb.ReadWriteTx) error {
-				addrmgrNs := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-				err := w.Manager.ChangePassphrase(
-					addrmgrNs, req.publicOld, req.publicNew,
-					false, &waddrmgr.DefaultScryptOptions,
-				)
-				if err != nil {
-					return err
-				}
-
-				return w.Manager.ChangePassphrase(
-					addrmgrNs, req.privateOld, req.privateNew,
-					true, &waddrmgr.DefaultScryptOptions,
 				)
 			})
 			req.err <- err
@@ -1362,45 +1323,16 @@ func (c heldUnlock) release() {
 	c <- struct{}{}
 }
 
-// ChangePrivatePassphrase attempts to change the passphrase for a wallet from
+// ChangePassphrase attempts to change the passphrase for a wallet from
 // old to new.  Changing the passphrase is synchronized with all other address
 // manager locking and unlocking.  The lock state will be the same as it was
 // before the password change.
-func (w *Wallet) ChangePrivatePassphrase(old, new []byte) error {
+func (w *Wallet) ChangePassphrase(old, new []byte) error {
 	err := make(chan error, 1)
 	w.changePassphrase <- changePassphraseRequest{
-		old:     old,
-		new:     new,
-		private: true,
-		err:     err,
-	}
-	return <-err
-}
-
-// ChangePublicPassphrase modifies the public passphrase of the wallet.
-func (w *Wallet) ChangePublicPassphrase(old, new []byte) error {
-	err := make(chan error, 1)
-	w.changePassphrase <- changePassphraseRequest{
-		old:     old,
-		new:     new,
-		private: false,
-		err:     err,
-	}
-	return <-err
-}
-
-// ChangePassphrases modifies the public and private passphrase of the wallet
-// atomically.
-func (w *Wallet) ChangePassphrases(publicOld, publicNew, privateOld,
-	privateNew []byte) error {
-
-	err := make(chan error, 1)
-	w.changePassphrases <- changePassphrasesRequest{
-		publicOld:  publicOld,
-		publicNew:  publicNew,
-		privateOld: privateOld,
-		privateNew: privateNew,
-		err:        err,
+		old: old,
+		new: new,
+		err: err,
 	}
 	return <-err
 }
@@ -3659,29 +3591,23 @@ func (w *Wallet) Database() walletdb.DB {
 
 // CreateWithCallback is the same as Create with an added callback that will be
 // called in the same transaction the wallet structure is initialized.
-func CreateWithCallback(db walletdb.DB, pubPass, privPass []byte,
+func CreateWithCallback(db walletdb.DB, privPass []byte,
 	rootKey *hdkeychain.ExtendedKey, params *chaincfg.Params,
 	birthday time.Time, cb func(walletdb.ReadWriteTx) error) error {
 
-	return create(
-		db, pubPass, privPass, rootKey, params, birthday, cb,
-	)
+	return create(db, privPass, rootKey, params, birthday, cb)
 }
 
 // Create creates an new wallet, writing it to an empty database.  If the passed
 // root key is non-nil, it is used.  Otherwise, a secure random seed of the
 // recommended length is generated.
-func Create(db walletdb.DB, pubPass, privPass []byte,
-	rootKey *hdkeychain.ExtendedKey, params *chaincfg.Params,
-	birthday time.Time) error {
+func Create(db walletdb.DB, privPass []byte, rootKey *hdkeychain.ExtendedKey,
+	params *chaincfg.Params, birthday time.Time) error {
 
-	return create(
-		db, pubPass, privPass, rootKey, params, birthday, nil,
-	)
+	return create(db, privPass, rootKey, params, birthday, nil)
 }
-func create(db walletdb.DB, pubPass, privPass []byte,
-	rootKey *hdkeychain.ExtendedKey, params *chaincfg.Params,
-	birthday time.Time,
+func create(db walletdb.DB, privPass []byte, rootKey *hdkeychain.ExtendedKey,
+	params *chaincfg.Params, birthday time.Time,
 	cb func(walletdb.ReadWriteTx) error) error {
 
 	// If no root key was provided, we create one now from a random seed.
@@ -3718,7 +3644,7 @@ func create(db walletdb.DB, pubPass, privPass []byte,
 		}
 
 		err = waddrmgr.Create(
-			addrmgrNs, rootKey, pubPass, privPass, params, nil,
+			addrmgrNs, rootKey, privPass, params, nil,
 			birthday,
 		)
 		if err != nil {
@@ -3739,7 +3665,7 @@ func create(db walletdb.DB, pubPass, privPass []byte,
 }
 
 // Open loads an already-created wallet from the passed database and namespaces.
-func Open(db walletdb.DB, pubPass []byte, cbs *waddrmgr.OpenCallbacks,
+func Open(db walletdb.DB, cbs *waddrmgr.OpenCallbacks,
 	params *chaincfg.Params, recoveryWindow uint32) (*Wallet, error) {
 
 	var (
@@ -3768,7 +3694,7 @@ func Open(db walletdb.DB, pubPass []byte, cbs *waddrmgr.OpenCallbacks,
 			return err
 		}
 
-		addrMgr, err = waddrmgr.Open(addrMgrBucket, pubPass, params)
+		addrMgr, err = waddrmgr.Open(addrMgrBucket, params)
 		if err != nil {
 			return err
 		}
@@ -3786,7 +3712,6 @@ func Open(db walletdb.DB, pubPass []byte, cbs *waddrmgr.OpenCallbacks,
 	log.Infof("Opened wallet") // TODO: log balance? last sync height?
 
 	w := &Wallet{
-		publicPassphrase:    pubPass,
 		db:                  db,
 		Manager:             addrMgr,
 		TxStore:             txMgr,
@@ -3803,7 +3728,6 @@ func Open(db walletdb.DB, pubPass []byte, cbs *waddrmgr.OpenCallbacks,
 		holdUnlockRequests:  make(chan chan heldUnlock),
 		lockState:           make(chan bool),
 		changePassphrase:    make(chan changePassphraseRequest),
-		changePassphrases:   make(chan changePassphrasesRequest),
 		chainParams:         params,
 		quit:                make(chan struct{}),
 	}

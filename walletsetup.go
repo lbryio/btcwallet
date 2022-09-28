@@ -45,18 +45,9 @@ func createWallet(cfg *config) error {
 		activeNet.Params, dbDir, true, cfg.DBTimeout, 250,
 	)
 
-	// Start by prompting for the private passphrase.
+	// Start by prompting for the passphrase.
 	reader := bufio.NewReader(os.Stdin)
-	privPass, err := prompt.PrivatePass(reader)
-	if err != nil {
-		return err
-	}
-
-	// Ascertain the public passphrase.  This will either be a value
-	// specified by the user or the default hard-coded public passphrase if
-	// the user does not want the additional public data encryption.
-	pubPass, err := prompt.PublicPass(reader, privPass,
-		[]byte(wallet.InsecurePubPassphrase), []byte(cfg.WalletPass))
+	privPass, err := prompt.Passphrase(reader)
 	if err != nil {
 		return err
 	}
@@ -70,7 +61,7 @@ func createWallet(cfg *config) error {
 	}
 
 	fmt.Println("Creating the wallet...")
-	w, err := loader.CreateNewWallet(pubPass, privPass, seed, bday)
+	w, err := loader.CreateNewWallet(privPass, seed, bday)
 	if err != nil {
 		return err
 	}
@@ -88,9 +79,6 @@ func createSimulationWallet(cfg *config) error {
 	// Simulation wallet password is 'password'.
 	privPass := []byte("password")
 
-	// Public passphrase is the default.
-	pubPass := []byte(wallet.InsecurePubPassphrase)
-
 	netDir := networkDir(cfg.AppDataDir.Value, activeNet.Params)
 
 	// Create the wallet.
@@ -105,7 +93,7 @@ func createSimulationWallet(cfg *config) error {
 	defer db.Close()
 
 	// Create the wallet.
-	err = wallet.Create(db, pubPass, privPass, nil, activeNet.Params, time.Now())
+	err = wallet.Create(db, privPass, nil, activeNet.Params, time.Now())
 	if err != nil {
 		return err
 	}

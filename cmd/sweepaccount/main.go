@@ -266,11 +266,11 @@ func sweep() error {
 		sourceOutputs[unspentOutput.Address] = append(sourceAddressOutputs, unspentOutput)
 	}
 
-	var privatePassphrase string
+	var passphrase string
 	if len(sourceOutputs) != 0 {
-		privatePassphrase, err = promptSecret("Wallet private passphrase")
+		passphrase, err = promptSecret("Wallet passphrase")
 		if err != nil {
-			return errContext(err, "failed to read private passphrase")
+			return errContext(err, "failed to read passphrase")
 		}
 	}
 
@@ -294,7 +294,7 @@ func sweep() error {
 		}
 
 		// Unlock the wallet, sign the transaction, and immediately lock.
-		err = rpcClient.WalletPassphrase(privatePassphrase, 60)
+		err = rpcClient.WalletPassphrase(passphrase, 60)
 		if err != nil {
 			reportError("Failed to unlock wallet: %v", err)
 			continue

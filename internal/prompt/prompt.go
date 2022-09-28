@@ -52,10 +52,10 @@ func provideSeed(reader *bufio.Reader) ([]byte, error) {
 	}
 }
 
-// ProvidePrivPassphrase is used to prompt for the private passphrase which
-// maybe required during upgrades.
-func ProvidePrivPassphrase() ([]byte, error) {
-	prompt := "Enter the private passphrase of your wallet: "
+// ProvidePassphrase is used to prompt for the passphrase which maybe required
+// during upgrades.
+func ProvidePassphrase() ([]byte, error) {
+	prompt := "Enter the passphrase of your wallet: "
 	for {
 		fmt.Print(prompt)
 		pass, err := terminal.ReadPassword(int(os.Stdin.Fd()))
@@ -147,10 +147,10 @@ func promptUnixTimestamp(reader *bufio.Reader, prefix string,
 	}
 }
 
-// promptPass prompts the user for a passphrase with the given prefix.  The
-// function will ask the user to confirm the passphrase and will repeat the
-// prompts until they enter a matching response.
-func promptPass(_ *bufio.Reader, prefix string, confirm bool) ([]byte, error) {
+// promptPassphrase prompts the user for a passphrase with the given prefix.
+// The function will ask the user to confirm the passphrase and will repeat
+// the prompts until they enter a matching response.
+func promptPassphrase(_ *bufio.Reader, prefix string, confirm bool) ([]byte, error) {
 	// Prompt the user until they enter a passphrase.
 	prompt := fmt.Sprintf("%s: ", prefix)
 	for {
@@ -191,56 +191,11 @@ func birthday(reader *bufio.Reader) (time.Time, error) {
 	return promptUnixTimestamp(reader, prompt, "0")
 }
 
-// PrivatePass prompts the user for a private passphrase.  The user is prompted
-// for a new private passphrase.  All prompts are repeated until the user
-// enters a valid response.
-func PrivatePass(reader *bufio.Reader) ([]byte, error) {
-	return promptPass(reader, "Enter the private "+
-		"passphrase for your new wallet", true)
-}
-
-// PublicPass prompts the user whether they want to add an additional layer of
-// encryption to the wallet.  When the user answers yes and there is already a
-// public passphrase provided via the passed config, it prompts them whether or
-// not to use that configured passphrase.  It will also detect when the same
-// passphrase is used for the private and public passphrase and prompt the user
-// if they are sure they want to use the same passphrase for both.  Finally, all
-// prompts are repeated until the user enters a valid response.
-func PublicPass(reader *bufio.Reader, privPass []byte,
-	defaultPubPassphrase, configPubPassphrase []byte) ([]byte, error) {
-
-	pubPass := defaultPubPassphrase
-	usePubPass, err := promptListBool(reader, "Do you want "+
-		"to add an additional layer of encryption for public "+
-		"data?", "no")
-	if err != nil {
-		return nil, err
-	}
-
-	if !usePubPass {
-		return pubPass, nil
-	}
-
-	if !bytes.Equal(configPubPassphrase, pubPass) {
-		useExisting, err := promptListBool(reader, "Use the "+
-			"existing configured public passphrase for encryption "+
-			"of public data?", "no")
-		if err != nil {
-			return nil, err
-		}
-
-		if useExisting {
-			return configPubPassphrase, nil
-		}
-	}
-	pubPass, err = provideSeed(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	fmt.Println("NOTE: Use the --walletpass option to configure your " +
-		"public passphrase.")
-	return pubPass, nil
+// Passphrase prompts the user for a passphrase.
+// All prompts are repeated until the user enters a valid response.
+func Passphrase(reader *bufio.Reader) ([]byte, error) {
+	return promptPassphrase(reader, "Enter the passphrase "+
+		"for your new wallet", true)
 }
 
 // Seed prompts the user whether they want to use an existing wallet generation

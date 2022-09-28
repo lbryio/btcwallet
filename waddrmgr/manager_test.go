@@ -431,7 +431,7 @@ func testExternalAddresses(tc *testContext) bool {
 	// private information is valid as well.
 	err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		return tc.rootManager.Unlock(ns, privPassphrase)
+		return tc.rootManager.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		tc.t.Errorf("Unlock: unexpected error: %v", err)
@@ -463,7 +463,7 @@ func testInternalAddresses(tc *testContext) bool {
 	// private information is valid as well.
 	err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		return tc.rootManager.Unlock(ns, privPassphrase)
+		return tc.rootManager.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		tc.t.Errorf("Unlock: unexpected error: %v", err)
@@ -603,7 +603,7 @@ func testLocking(tc *testContext) bool {
 	// unexpected errors and the manager properly reports it is unlocked.
 	err = walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		return tc.rootManager.Unlock(ns, privPassphrase)
+		return tc.rootManager.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		tc.t.Errorf("Unlock: unexpected error: %v", err)
@@ -617,7 +617,7 @@ func testLocking(tc *testContext) bool {
 	// Unlocking the manager again is allowed.
 	err = walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		return tc.rootManager.Unlock(ns, privPassphrase)
+		return tc.rootManager.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		tc.t.Errorf("Unlock: unexpected error: %v", err)
@@ -696,7 +696,7 @@ func testImportPrivateKey(tc *testContext) bool {
 	// The manager must be unlocked to import a private key.
 	err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		return tc.rootManager.Unlock(ns, privPassphrase)
+		return tc.rootManager.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		tc.t.Errorf("Unlock: unexpected error: %v", err)
@@ -913,7 +913,7 @@ func testImportScript(tc *testContext) bool {
 	// testing private data.
 	err := walletdb.View(tc.db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		return tc.rootManager.Unlock(ns, privPassphrase)
+		return tc.rootManager.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		tc.t.Errorf("Unlock: unexpected error: %v", err)
@@ -1122,74 +1122,11 @@ func testMarkUsed(tc *testContext, doScript bool) bool {
 func testChangePassphrase(tc *testContext) bool {
 	pfx := fmt.Sprintf("(%s) ", tc.caseName)
 
-	// Force an error when changing the passphrase due to failure to
-	// generate a new secret key by replacing the generation function one
-	// that intentionally errors.
-	testName := pfx + "ChangePassphrase (public) with invalid new secret key"
-
-	oldKeyGen := SetSecretKeyGen(failingSecretKeyGen)
+	testName := pfx + "ChangePassphrase with invalid old passphrase"
 	err := walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 		return tc.rootManager.ChangePassphrase(
-			ns, pubPassphrase, pubPassphrase2, false, fastScrypt,
-		)
-	})
-	if !checkManagerError(tc.t, testName, err, ErrCrypto) {
-		return false
-	}
-
-	// Attempt to change public passphrase with invalid old passphrase.
-	testName = pfx + "ChangePassphrase (public) with invalid old passphrase"
-	SetSecretKeyGen(oldKeyGen)
-	err = walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
-		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-		return tc.rootManager.ChangePassphrase(
-			ns, []byte("bogus"), pubPassphrase2, false, fastScrypt,
-		)
-	})
-	if !checkManagerError(tc.t, testName, err, ErrWrongPassphrase) {
-		return false
-	}
-
-	// Change the public passphrase.
-	testName = pfx + "ChangePassphrase (public)"
-	err = walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
-		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-		return tc.rootManager.ChangePassphrase(
-			ns, pubPassphrase, pubPassphrase2, false, fastScrypt,
-		)
-	})
-	if err != nil {
-		tc.t.Errorf("%s: unexpected error: %v", testName, err)
-		return false
-	}
-
-	// Ensure the public passphrase was successfully changed. We do this by
-	// being able to re-derive the public key with the new passphrase.
-	secretKey := snacl.SecretKey{Key: &snacl.CryptoKey{}}
-	secretKey.Parameters = tc.rootManager.masterKeyPub.Parameters
-	if err := secretKey.DeriveKey(&pubPassphrase2); err != nil {
-		tc.t.Errorf("%s: passphrase does not match", testName)
-		return false
-	}
-
-	// Change the private passphrase back to what it was.
-	err = walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
-		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-		return tc.rootManager.ChangePassphrase(
-			ns, pubPassphrase2, pubPassphrase, false, fastScrypt,
-		)
-	})
-	if err != nil {
-		tc.t.Errorf("%s: unexpected error: %v", testName, err)
-		return false
-	}
-
-	testName = pfx + "ChangePassphrase (private) with invalid old passphrase"
-	err = walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
-		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-		return tc.rootManager.ChangePassphrase(
-			ns, []byte("bogus"), privPassphrase2, true, fastScrypt,
+			ns, []byte("bogus"), privPassphrase2, fastScrypt,
 		)
 	})
 	wantErrCode := ErrWrongPassphrase
@@ -1197,12 +1134,11 @@ func testChangePassphrase(tc *testContext) bool {
 		return false
 	}
 
-	// Change the private passphrase.
-	testName = pfx + "ChangePassphrase (private)"
+	testName = pfx + "ChangePassphrase"
 	err = walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 		return tc.rootManager.ChangePassphrase(
-			ns, privPassphrase, privPassphrase2, true, fastScrypt,
+			ns, passphrase, privPassphrase2, fastScrypt,
 		)
 	})
 	if err != nil {
@@ -1217,8 +1153,8 @@ func testChangePassphrase(tc *testContext) bool {
 		return tc.rootManager.Unlock(ns, privPassphrase2)
 	})
 	if err != nil {
-		tc.t.Errorf("%s: failed to unlock with new private "+
-			"passphrase: %v", testName, err)
+		tc.t.Errorf("%s: failed to unlock with new passphrase: %v",
+			testName, err)
 		return false
 	}
 	tc.unlocked = true
@@ -1228,7 +1164,7 @@ func testChangePassphrase(tc *testContext) bool {
 	err = walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 		return tc.rootManager.ChangePassphrase(
-			ns, privPassphrase2, privPassphrase, true, fastScrypt,
+			ns, privPassphrase2, passphrase, fastScrypt,
 		)
 	})
 	if err != nil {
@@ -1269,7 +1205,7 @@ func testNewAccount(tc *testContext) bool {
 	// to derive account keys
 	err = walletdb.Update(tc.db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-		err := tc.rootManager.Unlock(ns, privPassphrase)
+		err := tc.rootManager.Unlock(ns, passphrase)
 		return err
 	})
 	if err != nil {
@@ -1668,7 +1604,7 @@ func _TestManager(t *testing.T) {
 		{
 			name:           "created with seed",
 			rootKey:        rootKey,
-			privPassphrase: privPassphrase,
+			privPassphrase: passphrase,
 		},
 	}
 
@@ -1688,7 +1624,7 @@ func testManagerCase(t *testing.T, caseName string,
 	// returned.
 	err := walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		_, err := Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		_, err := Open(ns, &chaincfg.MainNetParams)
 		return err
 	})
 	if !checkManagerError(t, "Open non-existent", err, ErrNoExist) {
@@ -1703,13 +1639,13 @@ func testManagerCase(t *testing.T, caseName string,
 			return err
 		}
 		err = Create(
-			ns, caseKey, pubPassphrase, casePrivPassphrase,
+			ns, caseKey, casePrivPassphrase,
 			&chaincfg.MainNetParams, fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, &chaincfg.MainNetParams)
 		if err != nil {
 			return err
 		}
@@ -1729,7 +1665,7 @@ func testManagerCase(t *testing.T, caseName string,
 	err = walletdb.Update(db, func(tx walletdb.ReadWriteTx) error {
 		ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
 		return Create(
-			ns, caseKey, pubPassphrase, casePrivPassphrase,
+			ns, caseKey, casePrivPassphrase,
 			&chaincfg.MainNetParams, fastScrypt, time.Time{},
 		)
 	})
@@ -1762,7 +1698,7 @@ func testManagerCase(t *testing.T, caseName string,
 	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
 		var err error
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, &chaincfg.MainNetParams)
 		return err
 	})
 	if err != nil {
@@ -1845,7 +1781,7 @@ func TestManagerHigherVersion(t *testing.T) {
 	// should expect to see the error ErrUpgrade.
 	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		_, err := Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		_, err := Open(ns, &chaincfg.MainNetParams)
 		return err
 	})
 	if !checkManagerError(t, "Upgrade needed", err, ErrUpgrade) {
@@ -1869,7 +1805,7 @@ func TestManagerHigherVersion(t *testing.T) {
 	// ErrUpgrade.
 	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		_, err := Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		_, err := Open(ns, &chaincfg.MainNetParams)
 		return err
 	})
 	if !checkManagerError(t, "Upgrade needed", err, ErrUpgrade) {
@@ -1913,7 +1849,7 @@ func TestEncryptDecryptErrors(t *testing.T) {
 	// Unlock the manager for these tests
 	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		return mgr.Unlock(ns, privPassphrase)
+		return mgr.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		t.Fatal("Attempted to unlock the manager, but failed:", err)
@@ -1945,7 +1881,7 @@ func TestEncryptDecrypt(t *testing.T) {
 	// Make sure address manager is unlocked
 	err := walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
-		return mgr.Unlock(ns, privPassphrase)
+		return mgr.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		t.Fatal("Attempted to unlock the manager, but failed:", err)
@@ -1993,19 +1929,19 @@ func TestScopedKeyManagerManagement(t *testing.T) {
 			return err
 		}
 		err = Create(
-			ns, rootKey, pubPassphrase, privPassphrase,
+			ns, rootKey, passphrase,
 			&chaincfg.MainNetParams, fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
 
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, &chaincfg.MainNetParams)
 		if err != nil {
 			return err
 		}
 
-		return mgr.Unlock(ns, privPassphrase)
+		return mgr.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		t.Fatalf("create/open: unexpected error: %v", err)
@@ -2152,12 +2088,12 @@ func TestScopedKeyManagerManagement(t *testing.T) {
 	err = walletdb.View(db, func(tx walletdb.ReadTx) error {
 		ns := tx.ReadBucket(waddrmgrNamespaceKey)
 		var err error
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, &chaincfg.MainNetParams)
 		if err != nil {
 			return err
 		}
 
-		return mgr.Unlock(ns, privPassphrase)
+		return mgr.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		t.Fatalf("open: unexpected error: %v", err)
@@ -2243,19 +2179,19 @@ func TestRootHDKeyNeutering(t *testing.T) {
 			return err
 		}
 		err = Create(
-			ns, rootKey, pubPassphrase, privPassphrase,
+			ns, rootKey, passphrase,
 			&chaincfg.MainNetParams, fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
 
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, &chaincfg.MainNetParams)
 		if err != nil {
 			return err
 		}
 
-		return mgr.Unlock(ns, privPassphrase)
+		return mgr.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		t.Fatalf("create/open: unexpected error: %v", err)
@@ -2336,19 +2272,19 @@ func TestNewRawAccount(t *testing.T) {
 			return err
 		}
 		err = Create(
-			ns, rootKey, pubPassphrase, privPassphrase,
+			ns, rootKey, passphrase,
 			&chaincfg.MainNetParams, fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
 
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, &chaincfg.MainNetParams)
 		if err != nil {
 			return err
 		}
 
-		return mgr.Unlock(ns, privPassphrase)
+		return mgr.Unlock(ns, passphrase)
 	})
 	if err != nil {
 		t.Fatalf("create/open: unexpected error: %v", err)
@@ -2449,18 +2385,18 @@ func TestDeriveFromKeyPathCache(t *testing.T) {
 			return err
 		}
 		err = Create(
-			ns, rootKey, pubPassphrase, privPassphrase,
+			ns, rootKey, passphrase,
 			&chaincfg.MainNetParams, fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, &chaincfg.MainNetParams)
 		if err != nil {
 			return err
 		}
 
-		return mgr.Unlock(ns, privPassphrase)
+		return mgr.Unlock(ns, passphrase)
 	})
 	require.NoError(t, err, "create/open: unexpected error: %v", err)
 

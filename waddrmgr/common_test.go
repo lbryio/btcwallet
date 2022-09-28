@@ -29,9 +29,7 @@ var (
 
 	rootKey, _ = hdkeychain.NewMaster(seed, &chaincfg.MainNetParams)
 
-	pubPassphrase   = []byte("_DJr{fL4H0O}*-0\n:V1izc)(6BomK")
-	privPassphrase  = []byte("81lUHXnOMZ@?XXd7O9xyDIWIbXX-lj")
-	pubPassphrase2  = []byte("-0NV4P~VSJBWbunw}%<Z]fuGpbN[ZI")
+	passphrase      = []byte("81lUHXnOMZ@?XXd7O9xyDIWIbXX-lj")
 	privPassphrase2 = []byte("~{<]08%6!-?2s<$(8$8:f(5[4/!/{Y")
 
 	// fastScrypt are parameters used throughout the tests to speed up the
@@ -287,13 +285,13 @@ func setupManager(t *testing.T) (tearDownFunc func(), db walletdb.DB, mgr *Manag
 			return err
 		}
 		err = Create(
-			ns, rootKey, pubPassphrase, privPassphrase,
-			&chaincfg.MainNetParams, fastScrypt, time.Time{},
+			ns, rootKey, passphrase, &chaincfg.MainNetParams,
+			fastScrypt, time.Time{},
 		)
 		if err != nil {
 			return err
 		}
-		mgr, err = Open(ns, pubPassphrase, &chaincfg.MainNetParams)
+		mgr, err = Open(ns, &chaincfg.MainNetParams)
 		return err
 	})
 	if err != nil {

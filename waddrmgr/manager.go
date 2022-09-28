@@ -81,7 +81,7 @@ const (
 	InternalBranch uint32 = 1
 
 	// saltSize is the number of bytes of the salt used when hashing
-	// private passphrases.
+	// passphrases.
 	saltSize = 32
 )
 
@@ -113,11 +113,11 @@ type OpenCallbacks struct {
 	// from the user (or any other mechanism the caller deems fit).
 	ObtainSeed ObtainUserInputFunc
 
-	// ObtainPrivatePass is a callback function that is potentially invoked
+	// ObtainPassphrase is a callback function that is potentially invoked
 	// during upgrades.  It is intended to be used to request the wallet
-	// private passphrase from the user (or any other mechanism the caller
-	// deems fit).
-	ObtainPrivatePass ObtainUserInputFunc
+	// passphrase from the user (or any other mechanism the caller deems
+	// fit).
+	ObtainPassphrase ObtainUserInputFunc
 }
 
 // DefaultScryptOptions is the default options used with scrypt.
@@ -373,11 +373,11 @@ type Manager struct {
 	cryptoKeyScriptEncrypted []byte
 	cryptoKeyScript          EncryptorDecryptor
 
-	// privPassphraseSalt and hashedPrivPassphrase allow for the secure
-	// detection of a correct passphrase on manager unlock when the
-	// manager is already unlocked.  The hash is zeroed each lock.
-	privPassphraseSalt   [saltSize]byte
-	hashedPrivPassphrase [sha512.Size]byte
+	// pssphraseSalt and hashedPassphrase allow for the secure detection
+	// of a correct passphrase on manager unlock when the manager is already
+	// unlocked.  The hash is zeroed each lock.
+	passphraseSalt   [saltSize]byte
+	hashedPassphrase [sha512.Size]byte
 }
 
 // lock performs a best try effort to remove and zero all secret keys associated
@@ -413,7 +413,7 @@ func (m *Manager) lock() {
 	m.masterKeyPriv.Zero()
 
 	// Zero the hashed passphrase.
-	zero.Bytea64(&m.hashedPrivPassphrase)
+	zero.Bytea64(&m.hashedPassphrase)
 
 	// NOTE: m.cryptoKeyPub is intentionally not cleared here as the address
 	// manager needs to be able to continue to read and decrypt public data
@@ -825,13 +825,12 @@ func (m *Manager) ChainParams() *chaincfg.Params {
 	return m.chainParams
 }
 
-// ChangePassphrase changes either the public or private passphrase to the
-// provided value depending on the private flag.  The new passphrase keys are
-// derived using the scrypt parameters in the options, so changing the
-// passphrase may be used to bump the computational difficulty needed to brute
-// force the passphrase.
+// ChangePassphrase changes passphrase to the provided value.  The new
+// passphrase keys are derived using the scrypt parameters in the options, so
+// changing the passphrase may be used to bump the computational difficulty
+// needed to brute force the passphrase.
 func (m *Manager) ChangePassphrase(ns walletdb.ReadWriteBucket, oldPassphrase,
-	newPassphrase []byte, private bool, config *ScryptOptions) error {
+	newPassphrase []byte, config *ScryptOptions) error {
 
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -842,13 +841,9 @@ func (m *Manager) ChangePassphrase(ns walletdb.ReadWriteBucket, oldPassphrase,
 	// cleared when done to avoid leaving a copy in memory.
 	var keyName string
 	secretKey := snacl.SecretKey{Key: &snacl.CryptoKey{}}
-	if private {
-		keyName = "private"
-		secretKey.Parameters = m.masterKeyPriv.Parameters
-	} else {
-		keyName = "public"
-		secretKey.Parameters = m.masterKeyPub.Parameters
-	}
+	keyName = "private"
+	secretKey.Parameters = m.masterKeyPriv.Parameters
+
 	if err := secretKey.DeriveKey(&oldPassphrase); err != nil {
 		if err == snacl.ErrInvalidPassword {
 			str := fmt.Sprintf("invalid passphrase for %s master "+
@@ -870,111 +865,84 @@ func (m *Manager) ChangePassphrase(ns walletdb.ReadWriteBucket, oldPassphrase,
 	}
 	newKeyParams := newMasterKey.Marshal()
 
-	if private {
-		// Technically, the locked state could be checked here to only
-		// do the decrypts when the address manager is locked as the
-		// clear text keys are already available in memory when it is
-		// unlocked, but this is not a hot path, decryption is quite
-		// fast, and it's less cyclomatic complexity to simply decrypt
-		// in either case.
+	// Technically, the locked state could be checked here to only
+	// do the decrypts when the address manager is locked as the
+	// clear text keys are already available in memory when it is
+	// unlocked, but this is not a hot path, decryption is quite
+	// fast, and it's less cyclomatic complexity to simply decrypt
+	// in either case.
 
-		// Create a new salt that will be used for hashing the new
-		// passphrase each unlock.
-		var passphraseSalt [saltSize]byte
-		_, err := rand.Read(passphraseSalt[:])
-		if err != nil {
-			str := "failed to read random source for passhprase salt"
-			return managerError(ErrCrypto, str, err)
-		}
-
-		// Re-encrypt the crypto private key using the new master
-		// private key.
-		decPriv, err := secretKey.Decrypt(m.cryptoKeyPrivEncrypted)
-		if err != nil {
-			str := "failed to decrypt crypto private key"
-			return managerError(ErrCrypto, str, err)
-		}
-		encPriv, err := newMasterKey.Encrypt(decPriv)
-		zero.Bytes(decPriv)
-		if err != nil {
-			str := "failed to encrypt crypto private key"
-			return managerError(ErrCrypto, str, err)
-		}
-
-		// Re-encrypt the crypto script key using the new master
-		// private key.
-		decScript, err := secretKey.Decrypt(m.cryptoKeyScriptEncrypted)
-		if err != nil {
-			str := "failed to decrypt crypto script key"
-			return managerError(ErrCrypto, str, err)
-		}
-		encScript, err := newMasterKey.Encrypt(decScript)
-		zero.Bytes(decScript)
-		if err != nil {
-			str := "failed to encrypt crypto script key"
-			return managerError(ErrCrypto, str, err)
-		}
-
-		// When the manager is locked, ensure the new clear text master
-		// key is cleared from memory now that it is no longer needed.
-		// If unlocked, create the new passphrase hash with the new
-		// passphrase and salt.
-		var hashedPassphrase [sha512.Size]byte
-		if m.locked {
-			newMasterKey.Zero()
-		} else {
-			saltedPassphrase := append(passphraseSalt[:],
-				newPassphrase...)
-			hashedPassphrase = sha512.Sum512(saltedPassphrase)
-			zero.Bytes(saltedPassphrase)
-		}
-
-		// Save the new keys and params to the db in a single
-		// transaction.
-		err = putCryptoKeys(ns, nil, encPriv, encScript)
-		if err != nil {
-			return maybeConvertDbError(err)
-		}
-
-		err = putMasterKeyParams(ns, nil, newKeyParams)
-		if err != nil {
-			return maybeConvertDbError(err)
-		}
-
-		// Now that the db has been successfully updated, clear the old
-		// key and set the new one.
-		copy(m.cryptoKeyPrivEncrypted, encPriv)
-		copy(m.cryptoKeyScriptEncrypted, encScript)
-		m.masterKeyPriv.Zero() // Clear the old key.
-		m.masterKeyPriv = newMasterKey
-		m.privPassphraseSalt = passphraseSalt
-		m.hashedPrivPassphrase = hashedPassphrase
-	} else {
-		// Re-encrypt the crypto public key using the new master public
-		// key.
-		encryptedPub, err := newMasterKey.Encrypt(m.cryptoKeyPub.Bytes())
-		if err != nil {
-			str := "failed to encrypt crypto public key"
-			return managerError(ErrCrypto, str, err)
-		}
-
-		// Save the new keys and params to the the db in a single
-		// transaction.
-		err = putCryptoKeys(ns, encryptedPub, nil, nil)
-		if err != nil {
-			return maybeConvertDbError(err)
-		}
-
-		err = putMasterKeyParams(ns, newKeyParams, nil)
-		if err != nil {
-			return maybeConvertDbError(err)
-		}
-
-		// Now that the db has been successfully updated, clear the old
-		// key and set the new one.
-		m.masterKeyPub.Zero()
-		m.masterKeyPub = newMasterKey
+	// Create a new salt that will be used for hashing the new
+	// passphrase each unlock.
+	var passphraseSalt [saltSize]byte
+	_, err = rand.Read(passphraseSalt[:])
+	if err != nil {
+		str := "failed to read random source for passhprase salt"
+		return managerError(ErrCrypto, str, err)
 	}
+
+	// Re-encrypt the crypto private key using the new master
+	// private key.
+	decPriv, err := secretKey.Decrypt(m.cryptoKeyPrivEncrypted)
+	if err != nil {
+		str := "failed to decrypt crypto private key"
+		return managerError(ErrCrypto, str, err)
+	}
+	encPriv, err := newMasterKey.Encrypt(decPriv)
+	zero.Bytes(decPriv)
+	if err != nil {
+		str := "failed to encrypt crypto private key"
+		return managerError(ErrCrypto, str, err)
+	}
+
+	// Re-encrypt the crypto script key using the new master
+	// private key.
+	decScript, err := secretKey.Decrypt(m.cryptoKeyScriptEncrypted)
+	if err != nil {
+		str := "failed to decrypt crypto script key"
+		return managerError(ErrCrypto, str, err)
+	}
+	encScript, err := newMasterKey.Encrypt(decScript)
+	zero.Bytes(decScript)
+	if err != nil {
+		str := "failed to encrypt crypto script key"
+		return managerError(ErrCrypto, str, err)
+	}
+
+	// When the manager is locked, ensure the new clear text master
+	// key is cleared from memory now that it is no longer needed.
+	// If unlocked, create the new passphrase hash with the new
+	// passphrase and salt.
+	var hashedPassphrase [sha512.Size]byte
+	if m.locked {
+		newMasterKey.Zero()
+	} else {
+		saltedPassphrase := append(passphraseSalt[:],
+			newPassphrase...)
+		hashedPassphrase = sha512.Sum512(saltedPassphrase)
+		zero.Bytes(saltedPassphrase)
+	}
+
+	// Save the new keys and params to the db in a single
+	// transaction.
+	err = putCryptoKeys(ns, nil, encPriv, encScript)
+	if err != nil {
+		return maybeConvertDbError(err)
+	}
+
+	err = putMasterKeyParams(ns, nil, newKeyParams)
+	if err != nil {
+		return maybeConvertDbError(err)
+	}
+
+	// Now that the db has been successfully updated, clear the old
+	// key and set the new one.
+	copy(m.cryptoKeyPrivEncrypted, encPriv)
+	copy(m.cryptoKeyScriptEncrypted, encScript)
+	m.masterKeyPriv.Zero() // Clear the old key.
+	m.masterKeyPriv = newMasterKey
+	m.passphraseSalt = passphraseSalt
+	m.hashedPassphrase = hashedPassphrase
 
 	return nil
 }
@@ -1027,11 +995,10 @@ func (m *Manager) Unlock(ns walletdb.ReadBucket, passphrase []byte) error {
 	// Avoid actually unlocking if the manager is already unlocked
 	// and the passphrases match.
 	if !m.locked {
-		saltedPassphrase := append(m.privPassphraseSalt[:],
-			passphrase...)
+		saltedPassphrase := append(m.passphraseSalt[:], passphrase...)
 		hashedPassphrase := sha512.Sum512(saltedPassphrase)
 		zero.Bytes(saltedPassphrase)
-		if hashedPassphrase != m.hashedPrivPassphrase {
+		if hashedPassphrase != m.hashedPassphrase {
 			m.lock()
 			str := "invalid passphrase for master private key"
 			return managerError(ErrWrongPassphrase, str, nil)
@@ -1126,8 +1093,8 @@ func (m *Manager) Unlock(ns walletdb.ReadBucket, passphrase []byte) error {
 	}
 
 	m.locked = false
-	saltedPassphrase := append(m.privPassphraseSalt[:], passphrase...)
-	m.hashedPrivPassphrase = sha512.Sum512(saltedPassphrase)
+	saltedPassphrase := append(m.passphraseSalt[:], passphrase...)
+	m.hashedPassphrase = sha512.Sum512(saltedPassphrase)
 	zero.Bytes(saltedPassphrase)
 	return nil
 }
@@ -1235,7 +1202,7 @@ func (m *Manager) Decrypt(keyType CryptoKeyType, in []byte) ([]byte, error) {
 func newManager(chainParams *chaincfg.Params, masterKeyPub *snacl.SecretKey,
 	masterKeyPriv *snacl.SecretKey, cryptoKeyPub EncryptorDecryptor,
 	cryptoKeyPrivEncrypted, cryptoKeyScriptEncrypted []byte, syncInfo *syncState,
-	birthday time.Time, privPassphraseSalt [saltSize]byte,
+	birthday time.Time, passphraseSalt [saltSize]byte,
 	scopedManagers map[KeyScope]*ScopedKeyManager) *Manager {
 
 	m := &Manager{
@@ -1250,7 +1217,7 @@ func newManager(chainParams *chaincfg.Params, masterKeyPub *snacl.SecretKey,
 		cryptoKeyPriv:            &cryptoKey{},
 		cryptoKeyScriptEncrypted: cryptoKeyScriptEncrypted,
 		cryptoKeyScript:          &cryptoKey{},
-		privPassphraseSalt:       privPassphraseSalt,
+		passphraseSalt:           passphraseSalt,
 		scopedManagers:           scopedManagers,
 		externalAddrSchemas:      make(map[AddressType][]KeyScope),
 		internalAddrSchemas:      make(map[AddressType][]KeyScope),
@@ -1361,10 +1328,9 @@ func checkBranchKeys(acctKey *hdkeychain.ExtendedKey) error {
 }
 
 // loadManager returns a new address manager that results from loading it from
-// the passed opened database.  The public passphrase is required to decrypt
-// the public keys.
-func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
-	chainParams *chaincfg.Params) (*Manager, error) {
+// the passed opened database.
+func loadManager(ns walletdb.ReadBucket, chainParams *chaincfg.Params) (
+	*Manager, error) {
 
 	// Verify the version is neither too old or too new.
 	version, err := fetchManagerVersion(ns)
@@ -1381,7 +1347,7 @@ func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
 	}
 
 	// Load the master key params from the db.
-	masterKeyPubParams, masterKeyPrivParams, err := fetchMasterKeyParams(ns)
+	masterKeyPubParams, masterKeyparams, err := fetchMasterKeyParams(ns)
 	if err != nil {
 		return nil, maybeConvertDbError(err)
 	}
@@ -1410,7 +1376,7 @@ func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
 	// Set the master private key params, but don't derive it now since the
 	// manager starts off locked.
 	var masterKeyPriv snacl.SecretKey
-	err = masterKeyPriv.Unmarshal(masterKeyPrivParams)
+	err = masterKeyPriv.Unmarshal(masterKeyparams)
 	if err != nil {
 		str := "failed to unmarshal master private key"
 		return nil, managerError(ErrCrypto, str, err)
@@ -1423,6 +1389,8 @@ func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
 		str := "failed to unmarshal master public key"
 		return nil, managerError(ErrCrypto, str, err)
 	}
+
+	pubPassphrase := []byte("public") // Hardcoded salt.
 	if err := masterKeyPub.DeriveKey(&pubPassphrase); err != nil {
 		str := "invalid passphrase for master public key"
 		return nil, managerError(ErrWrongPassphrase, str, nil)
@@ -1441,9 +1409,9 @@ func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
 	// Create the sync state struct.
 	syncInfo := newSyncState(startBlock, syncedTo)
 
-	// Generate private passphrase salt.
-	var privPassphraseSalt [saltSize]byte
-	_, err = rand.Read(privPassphraseSalt[:])
+	// Generate passphrase salt.
+	var passphraseSalt [saltSize]byte
+	_, err = rand.Read(passphraseSalt[:])
 	if err != nil {
 		str := "failed to read random source for passphrase salt"
 		return nil, managerError(ErrCrypto, str, err)
@@ -1480,7 +1448,7 @@ func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
 	mgr := newManager(
 		chainParams, &masterKeyPub, &masterKeyPriv,
 		cryptoKeyPub, cryptoKeyPrivEnc, cryptoKeyScriptEnc, syncInfo,
-		birthday, privPassphraseSalt, scopedManagers)
+		birthday, passphraseSalt, scopedManagers)
 
 	for _, scopedManager := range scopedManagers {
 		scopedManager.rootManager = mgr
@@ -1489,18 +1457,15 @@ func loadManager(ns walletdb.ReadBucket, pubPassphrase []byte,
 	return mgr, nil
 }
 
-// Open loads an existing address manager from the given namespace.  The public
-// passphrase is required to decrypt the public keys used to protect the public
-// information such as addresses.  This is important since access to BIP0032
-// extended keys means it is possible to generate all future addresses.
+// Open loads an existing address manager from the given namespace.
 //
 // If a config structure is passed to the function, that configuration will
 // override the defaults.
 //
 // A ManagerError with an error code of ErrNoExist will be returned if the
 // passed manager does not exist in the specified namespace.
-func Open(ns walletdb.ReadBucket, pubPassphrase []byte,
-	chainParams *chaincfg.Params) (*Manager, error) {
+func Open(ns walletdb.ReadBucket, chainParams *chaincfg.Params) (
+	*Manager, error) {
 
 	// Return an error if the manager has NOT already been created in the
 	// given database namespace.
@@ -1510,7 +1475,7 @@ func Open(ns walletdb.ReadBucket, pubPassphrase []byte,
 		return nil, managerError(ErrNoExist, str, nil)
 	}
 
-	return loadManager(ns, pubPassphrase, chainParams)
+	return loadManager(ns, chainParams)
 }
 
 // createManagerKeyScope creates a new key scoped for a target manager's scope.
@@ -1622,12 +1587,10 @@ func createManagerKeyScope(ns walletdb.ReadWriteBucket,
 // derived.  This allows all chained addresses in the address manager
 // to be recovered by using the same seed.
 //
-// All private and public keys and information are protected by secret
-// keys derived from the provided private and public passphrases.  The
-// public passphrase is required on subsequent opens of the address
-// manager, and the private passphrase is required to unlock the
-// address manager in order to gain access to any private keys and
-// information.
+// All private keys and information are protected by secret keys derived
+// from the provided passphrase.
+// The passphrase is required to unlock the address manager in order to gain
+// access to any private keys and information.
 //
 // If a config structure is passed to the function, that configuration
 // will override the defaults.
@@ -1636,9 +1599,8 @@ func createManagerKeyScope(ns walletdb.ReadWriteBucket,
 // returned the address manager already exists in the specified
 // namespace.
 func Create(ns walletdb.ReadWriteBucket, rootKey *hdkeychain.ExtendedKey,
-	pubPassphrase, privPassphrase []byte,
-	chainParams *chaincfg.Params, config *ScryptOptions,
-	birthday time.Time) error {
+	passphrase []byte, chainParams *chaincfg.Params,
+	config *ScryptOptions, birthday time.Time) error {
 
 	// Return an error if the manager has already been created in
 	// the given database namespace.
@@ -1647,9 +1609,9 @@ func Create(ns walletdb.ReadWriteBucket, rootKey *hdkeychain.ExtendedKey,
 		return managerError(ErrAlreadyExists, errAlreadyExists, nil)
 	}
 
-	// Ensure the private passphrase is not empty.
-	if len(privPassphrase) == 0 {
-		str := "private passphrase may not be empty"
+	// Ensure the passphrase is not empty.
+	if len(passphrase) == 0 {
+		str := "passphrase may not be empty"
 		return managerError(ErrEmptyPassphrase, str, nil)
 	}
 
@@ -1664,6 +1626,7 @@ func Create(ns walletdb.ReadWriteBucket, rootKey *hdkeychain.ExtendedKey,
 
 	// Generate new master keys.  These master keys are used to protect the
 	// crypto keys that will be generated next.
+	pubPassphrase := []byte("public") // Hardcoded salt.
 	masterKeyPub, err := newSecretKey(&pubPassphrase, config)
 	if err != nil {
 		str := "failed to master public key"
@@ -1699,22 +1662,22 @@ func Create(ns walletdb.ReadWriteBucket, rootKey *hdkeychain.ExtendedKey,
 
 	pubParams := masterKeyPub.Marshal()
 
-	var privParams []byte
+	var params []byte
 	var masterKeyPriv *snacl.SecretKey
 	var cryptoKeyPrivEnc []byte
 	var cryptoKeyScriptEnc []byte
-	masterKeyPriv, err = newSecretKey(&privPassphrase, config)
+	masterKeyPriv, err = newSecretKey(&passphrase, config)
 	if err != nil {
 		str := "failed to master private key"
 		return managerError(ErrCrypto, str, err)
 	}
 	defer masterKeyPriv.Zero()
 
-	// Generate the private passphrase salt.  This is used when
-	// hashing passwords to detect whether an unlock can be
-	// avoided when the manager is already unlocked.
-	var privPassphraseSalt [saltSize]byte
-	_, err = rand.Read(privPassphraseSalt[:])
+	// Generate the passphrase salt. This is used when hashing passwords
+	// to detect whether an unlock can be avoided when the manager is
+	// already unlocked.
+	var passphraseSalt [saltSize]byte
+	_, err = rand.Read(passphraseSalt[:])
 	if err != nil {
 		str := "failed to read random source for passphrase salt"
 		return managerError(ErrCrypto, str, err)
@@ -1786,10 +1749,10 @@ func Create(ns walletdb.ReadWriteBucket, rootKey *hdkeychain.ExtendedKey,
 		return maybeConvertDbError(err)
 	}
 
-	privParams = masterKeyPriv.Marshal()
+	params = masterKeyPriv.Marshal()
 
 	// Save the master key params to the database.
-	err = putMasterKeyParams(ns, pubParams, privParams)
+	err = putMasterKeyParams(ns, pubParams, params)
 	if err != nil {
 		return maybeConvertDbError(err)
 	}

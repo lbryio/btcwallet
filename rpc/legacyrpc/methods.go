@@ -2154,7 +2154,7 @@ func walletPassphrase(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 func walletPassphraseChange(icmd interface{}, w *wallet.Wallet) (interface{}, error) {
 	cmd := icmd.(*btcjson.WalletPassphraseChangeCmd)
 
-	err := w.ChangePrivatePassphrase([]byte(cmd.OldPassphrase),
+	err := w.ChangePassphrase([]byte(cmd.OldPassphrase),
 		[]byte(cmd.NewPassphrase))
 	if waddrmgr.IsError(err, waddrmgr.ErrWrongPassphrase) {
 		return nil, &btcjson.RPCError{

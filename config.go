@@ -265,7 +265,6 @@ func loadConfig() (*config, []string, error) {
 		ConfigFile:             cfgutil.NewExplicitString(defaultConfigFile),
 		AppDataDir:             cfgutil.NewExplicitString(defaultAppDataDir),
 		LogDir:                 defaultLogDir,
-		WalletPass:             wallet.InsecurePubPassphrase,
 		CAFile:                 cfgutil.NewExplicitString(""),
 		RPCKey:                 cfgutil.NewExplicitString(defaultRPCKeyFile),
 		RPCCert:                cfgutil.NewExplicitString(defaultRPCCertFile),

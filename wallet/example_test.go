@@ -33,19 +33,18 @@ func testWallet(t *testing.T) (*Wallet, func()) {
 		t.Fatalf("unable to create seed: %v", err)
 	}
 
-	pubPass := []byte("hello")
-	privPass := []byte("world")
+	passphrase := []byte("hello world")
 
 	loader := NewLoader(
 		&chaincfg.TestNet3Params, dir, true, defaultDBTimeout, 250,
 	)
-	w, err := loader.CreateNewWallet(pubPass, privPass, seed, time.Now())
+	w, err := loader.CreateNewWallet(passphrase, seed, time.Now())
 	if err != nil {
 		t.Fatalf("unable to create wallet: %v", err)
 	}
 	chainClient := &mockChainClient{}
 	w.chainClient = chainClient
-	if err := w.Unlock(privPass, time.After(10*time.Minute)); err != nil {
+	if err := w.Unlock(passphrase, time.After(10*time.Minute)); err != nil {
 		t.Fatalf("unable to unlock wallet: %v", err)
 	}
 

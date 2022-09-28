@@ -140,10 +140,10 @@ func (l *Loader) OnWalletCreated(fn func(walletdb.ReadWriteTx) error) {
 	l.walletCreated = fn
 }
 
-// CreateNewWallet creates a new wallet using the provided public and private
-// passphrases.  The seed is optional.  If non-nil, addresses are derived from
-// this seed.  If nil, a secure random seed is generated.
-func (l *Loader) CreateNewWallet(pubPassphrase, privPassphrase, seed []byte,
+// CreateNewWallet creates a new wallet using the provided passphrase.
+// The seed is optional.  If non-nil, addresses are derived from this seed.
+// If nil, a secure random seed is generated.
+func (l *Loader) CreateNewWallet(passphrase, seed []byte,
 	bday time.Time) (*Wallet, error) {
 
 	var (
@@ -168,20 +168,20 @@ func (l *Loader) CreateNewWallet(pubPassphrase, privPassphrase, seed []byte,
 		}
 	}
 
-	return l.createNewWallet(pubPassphrase, privPassphrase, rootKey, bday)
+	return l.createNewWallet(passphrase, rootKey, bday)
 }
 
 // CreateNewWalletExtendedKey creates a new wallet from an extended master root
-// key using the provided public and private passphrases.  The root key is
-// optional.  If non-nil, addresses are derived from this root key.  If nil, a
+// key using the provided passphrase.  The root key is optional.
+// If non-nil, addresses are derived from this root key.  If nil, a
 // secure random seed is generated and the root key is derived from that.
-func (l *Loader) CreateNewWalletExtendedKey(pubPassphrase, privPassphrase []byte,
+func (l *Loader) CreateNewWalletExtendedKey(passphrase []byte,
 	rootKey *hdkeychain.ExtendedKey, bday time.Time) (*Wallet, error) {
 
-	return l.createNewWallet(pubPassphrase, privPassphrase, rootKey, bday)
+	return l.createNewWallet(passphrase, rootKey, bday)
 }
 
-func (l *Loader) createNewWallet(pubPassphrase, privPassphrase []byte,
+func (l *Loader) createNewWallet(passphrase []byte,
 	rootKey *hdkeychain.ExtendedKey, bday time.Time) (*Wallet, error) {
 
 	defer l.mu.Unlock()
@@ -216,16 +216,15 @@ func (l *Loader) createNewWallet(pubPassphrase, privPassphrase []byte,
 	}
 
 	// Initialize the newly created database for the wallet before opening.
-	err = CreateWithCallback(
-		l.db, pubPassphrase, privPassphrase, rootKey,
-		l.chainParams, bday, l.walletCreated,
+	err = CreateWithCallback(l.db, passphrase, rootKey, l.chainParams,
+		bday, l.walletCreated,
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	// Open the newly-created wallet.
-	w, err := Open(l.db, pubPassphrase, nil, l.chainParams, l.recoveryWindow)
+	w, err := Open(l.db, nil, l.chainParams, l.recoveryWindow)
 	if err != nil {
 		return nil, err
 	}
@@ -241,11 +240,10 @@ func noConsole() ([]byte, error) {
 	return nil, errNoConsole
 }
 
-// OpenExistingWallet opens the wallet from the loader's wallet database path
-// and the public passphrase.  If the loader is being called by a context where
-// standard input prompts may be used during wallet upgrades, setting
-// canConsolePrompt will enables these prompts.
-func (l *Loader) OpenExistingWallet(pubPassphrase []byte, canConsolePrompt bool) (*Wallet, error) {
+// OpenExistingWallet opens the wallet from the loader's wallet database path.
+// If the loader is being called by a context where standard input prompts may
+// be used during wallet upgrades, setting canConsolePrompt will enables these prompts.
+func (l *Loader) OpenExistingWallet(canConsolePrompt bool) (*Wallet, error) {
 	defer l.mu.Unlock()
 	l.mu.Lock()
 
@@ -274,16 +272,16 @@ func (l *Loader) OpenExistingWallet(pubPassphrase []byte, canConsolePrompt bool)
 	var cbs *waddrmgr.OpenCallbacks
 	if canConsolePrompt {
 		cbs = &waddrmgr.OpenCallbacks{
-			ObtainSeed:        prompt.ProvideSeed(),
-			ObtainPrivatePass: prompt.ProvidePrivPassphrase,
+			ObtainSeed:       prompt.ProvideSeed(),
+			ObtainPassphrase: prompt.ProvidePassphrase,
 		}
 	} else {
 		cbs = &waddrmgr.OpenCallbacks{
-			ObtainSeed:        noConsole,
-			ObtainPrivatePass: noConsole,
+			ObtainSeed:       noConsole,
+			ObtainPassphrase: noConsole,
 		}
 	}
-	w, err := Open(l.db, pubPassphrase, cbs, l.chainParams, l.recoveryWindow)
+	w, err := Open(l.db, cbs, l.chainParams, l.recoveryWindow)
 	if err != nil {
 		// If opening the wallet fails (e.g. because of wrong
 		// passphrase), we must close the backing database to

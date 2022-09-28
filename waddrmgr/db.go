@@ -34,7 +34,7 @@ var (
 
 // ObtainUserInputFunc is a function that reads a user input and returns it as
 // a byte stream. It is used to accept data required during upgrades, for e.g.
-// wallet seed and private passphrase.
+// wallet seed and passphrase.
 type ObtainUserInputFunc func() ([]byte, error)
 
 // maybeConvertDbError converts the passed error to a ManagerError with an
