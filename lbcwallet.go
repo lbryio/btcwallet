@@ -85,6 +85,11 @@ func walletMain() error {
 
 	loader.RunAfterLoad(func(w *wallet.Wallet) {
 		startWalletRPCServices(w, legacyRPCServer)
+		log.Infof("Unlocking wallet with the default or specified passphrase...")
+		err = w.Unlock([]byte(cfg.Passphrase), nil)
+		if err != nil {
+			log.Infof("Unable to unlock wallet: %v", err)
+		}
 	})
 
 	_, err = loader.OpenExistingWallet()

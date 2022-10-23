@@ -58,7 +58,7 @@ type config struct {
 	DBTimeout   time.Duration           `long:"dbtimeout" description:"The timeout value to use when opening the wallet database."`
 
 	// Passphrase options
-	Passphrase string `short:"p" long:"passphrase" default-mask:"-" description:"The wallet passphrase (default: \"insecurepassphrase\")"`
+	Passphrase string `short:"p" long:"passphrase" default-mask:"-" description:"The wallet passphrase (default: \"passphrase\")"`
 
 	// RPC client options
 	RPCConnect       string                  `short:"c" long:"rpcconnect" description:"Hostname/IP and port of lbcd RPC server to connect to (default localhost:9245, testnet: localhost:19245, regtest: localhost:29245)"`

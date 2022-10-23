@@ -46,12 +46,9 @@ func createWallet(cfg *config) error {
 	)
 
 	// Start by prompting for the passphrase.
-	reader := bufio.NewReader(os.Stdin)
-	privPass, err := prompt.Passphrase(true)
-	if err != nil {
-		return err
-	}
+	passphrase := []byte(cfg.Passphrase)
 
+	reader := bufio.NewReader(os.Stdin)
 	// Ascertain the wallet generation seed.  This will either be an
 	// automatically generated value the user has already confirmed or a
 	// value the user has entered which has already been validated.
@@ -61,7 +58,7 @@ func createWallet(cfg *config) error {
 	}
 
 	fmt.Println("Creating the wallet...")
-	w, err := loader.CreateNewWallet(privPass, seed, bday)
+	w, err := loader.CreateNewWallet(passphrase, seed, bday)
 	if err != nil {
 		return err
 	}
