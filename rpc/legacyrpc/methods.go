@@ -102,6 +102,7 @@ var rpcHandlers = map[string]struct {
 	"listunspent":            {handler: listUnspent},
 	"lockunspent":            {handler: lockUnspent},
 	"sendfrom":               {handlerWithChain: sendFrom},
+	"rescanblockchain":       {handlerWithChain: rescanBlockchain},
 	"sendmany":               {handler: sendMany},
 	"sendtoaddress":          {handler: sendToAddress},
 	"settxfee":               {handler: setTxFee},
@@ -1583,6 +1584,49 @@ func makeOutputs(pairs map[string]btcutil.Amount, chainParams *chaincfg.Params) 
 		outputs = append(outputs, wire.NewTxOut(int64(amt), pkScript))
 	}
 	return outputs, nil
+}
+
+// rescanBlockchain handles a rescanblockhain RPC request.
+func rescanBlockchain(icmd interface{}, w *wallet.Wallet,
+	chainClient *chain.RPCClient) (interface{}, error) {
+
+	cmd := icmd.(*btcjson.RescanBlockchainCmd)
+
+	_, bestHeight, err := chainClient.GetBestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	startHeight := *cmd.StartHeight
+	if startHeight < 0 || startHeight > bestHeight {
+		return nil, &btcjson.RPCError{
+			Code:    btcjson.ErrRPCInvalidParameter,
+			Message: "Invalid start height",
+		}
+	}
+
+	// Scan to the best block if no stopHeight is specified.
+	stopHeight := bestHeight
+	if cmd.StopHeight != nil {
+		stopHeight = *cmd.StopHeight
+	}
+	if stopHeight < 0 || stopHeight > bestHeight {
+		return nil, &btcjson.RPCError{
+			Code:    btcjson.ErrRPCInvalidParameter,
+			Message: "Invalid stop height",
+		}
+	}
+
+	startHeight, stopHeight, err = w.RescanBlockchain(chainClient,
+		startHeight, stopHeight)
+	if err != nil {
+		return nil, fmt.Errorf("rescanblockchain: %w", err)
+	}
+	ret := btcjson.RescanBlockchainResult{
+		StartHeight: startHeight,
+		StoptHeight: stopHeight,
+	}
+	return ret, nil
 }
 
 // sendPairs creates and sends payment transactions.

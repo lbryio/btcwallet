@@ -70,6 +70,7 @@ var Methods = []struct {
 	{"listaddresstransactions", returnsLTRArray},
 	{"listalltransactions", returnsLTRArray},
 	{"renameaccount", nil},
+	{"rescanblockchain", []interface{}{(*btcjson.RescanBlockchainResult)(nil)}},
 	{"walletislocked", returnsBool},
 }
 

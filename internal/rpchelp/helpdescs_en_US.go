@@ -348,6 +348,15 @@ var helpDescsEnUS = map[string]string{
 	"renameaccount-oldaccount": "The old account name to rename.",
 	"renameaccount-newaccount": "The new name for the account.",
 
+	// RescanBlockchainCmd help.
+	"rescanblockchain--synopsis":   "Renames an account.",
+	"rescanblockchain-startheight": "Block height where the rescan should start.",
+	"rescanblockchain-stopheight":  "The last block height that should be scanned. If none is provided it will rescan up to the tip at return time of this call.",
+
+	// RescanblockchainResult help.
+	"rescanblockchainresult-start_height": "The block height where the rescan started (the requested height or 0)",
+	"rescanblockchainresult-stop_height":  "The height of the last rescanned block.",
+
 	// SendFromCmd help.
 	"sendfrom--synopsis": "Authors, signs, and sends a transaction that outputs some amount to a payment address.\n" +
 		"A change output is automatically included to send extra output value back to the original account.",
