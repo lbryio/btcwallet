@@ -26,7 +26,6 @@ import (
 	btcutil "github.com/lbryio/lbcutil"
 	"github.com/lbryio/lbcutil/hdkeychain"
 	"github.com/lbryio/lbcwallet/chain"
-	"github.com/lbryio/lbcwallet/internal/prompt"
 	"github.com/lbryio/lbcwallet/waddrmgr"
 	"github.com/lbryio/lbcwallet/wallet/txauthor"
 	"github.com/lbryio/lbcwallet/wallet/txrules"
@@ -407,7 +406,7 @@ func (w *Wallet) syncWithChain(birthdayStamp *waddrmgr.BlockStamp) error {
 	// If the wallet requested an on-chain recovery of its funds, we'll do
 	// so now.
 	if w.recoveryWindow > 0 {
-		if err := w.recovery(chainClient, birthdayStamp); err != nil {
+		if err := w.Recovery(chainClient); err != nil {
 			return fmt.Errorf("unable to perform wallet recovery: "+
 				"%v", err)
 		}
@@ -638,13 +637,12 @@ func locateBirthdayBlock(chainClient chainConn,
 	return birthdayBlock, nil
 }
 
-// recovery attempts to recover any unspent outputs that pay to any of our
+// Recovery attempts to recover any unspent outputs that pay to any of our
 // addresses starting from our birthday, or the wallet's tip (if higher), which
 // would indicate resuming a recovery after a restart.
-func (w *Wallet) recovery(chainClient chain.Interface,
-	birthdayBlock *waddrmgr.BlockStamp) error {
+func (w *Wallet) Recovery(chainClient chain.Interface) error {
 
-	log.Infof("RECOVERY MODE ENABLED -- rescanning for used addresses "+
+	log.Infof("Recovery for used addresses "+
 		"with recovery_window=%d", w.recoveryWindow)
 
 	// We'll initialize the recovery manager with a default batch size of
@@ -672,44 +670,36 @@ func (w *Wallet) recovery(chainClient chain.Interface,
 		return err
 	}
 
-	// Fetch the best height from the backend to determine when we should
-	// stop.
-	_, bestHeight, err := chainClient.GetBestBlock()
-	if err != nil {
-		return err
-	}
+	return nil
+}
 
-	// Now we can begin scanning the chain from the wallet's current tip to
-	// ensure we properly handle restarts. Since the recovery process itself
-	// acts as rescan, we'll also update our wallet's synced state along the
-	// way to reflect the blocks we process and prevent rescanning them
-	// later on.
-	//
-	// NOTE: We purposefully don't update our best height since we assume
-	// that a wallet rescan will be performed from the wallet's tip, which
-	// will be of bestHeight after completing the recovery process.
+func (w *Wallet) RescanBlockchain(chainClient chain.Interface,
+	startHeight int32, stopHeight int32) (int32, int32, error) {
 
-	pass, err := prompt.Passphrase(false)
-	if err != nil {
-		return err
-	}
+	log.Infof("Rescanning blockchain from block %d to %d "+
+		"with recovery_window=%d", startHeight, stopHeight,
+		w.recoveryWindow)
 
-	err = w.Unlock(pass, nil)
-	if err != nil {
-		return err
+	defer log.Infof("Rescan blockchain done")
+
+	recoveryMgr := NewRecoveryManager(
+		w.recoveryWindow, recoveryBatchSize, w.chainParams,
+	)
+
+	scopedMgrs := make(map[waddrmgr.KeyScope]*waddrmgr.ScopedKeyManager)
+	for _, scopedMgr := range w.Manager.ActiveScopedKeyManagers() {
+		scopedMgrs[scopedMgr.Scope()] = scopedMgr
 	}
-	defer w.Lock()
 
 	var blocks []*waddrmgr.BlockStamp
-	startHeight := w.Manager.SyncedTo().Height + 1
-	for height := startHeight; height <= bestHeight; height++ {
+	for height := startHeight; height <= stopHeight; height++ {
 		hash, err := chainClient.GetBlockHash(int64(height))
 		if err != nil {
-			return err
+			return startHeight, stopHeight, err
 		}
 		header, err := chainClient.GetBlockHeader(hash)
 		if err != nil {
-			return err
+			return startHeight, stopHeight, err
 		}
 		blocks = append(blocks, &waddrmgr.BlockStamp{
 			Hash:      *hash,
@@ -720,7 +710,7 @@ func (w *Wallet) recovery(chainClient chain.Interface,
 		// It's possible for us to run into blocks before our birthday
 		// if our birthday is after our reorg safe height, so we'll make
 		// sure to not add those to the batch.
-		if height >= birthdayBlock.Height {
+		if height >= startHeight {
 			recoveryMgr.AddToBlockBatch(
 				hash, height, header.Timestamp,
 			)
@@ -731,18 +721,12 @@ func (w *Wallet) recovery(chainClient chain.Interface,
 		// the recovery batch size, so we can proceed to commit our
 		// state to disk.
 		recoveryBatch := recoveryMgr.BlockBatch()
-		if len(recoveryBatch) != recoveryBatchSize && height != bestHeight {
+		if len(recoveryBatch) != recoveryBatchSize && height != stopHeight {
 			continue
 		}
 
 		err = walletdb.Update(w.db, func(tx walletdb.ReadWriteTx) error {
 			ns := tx.ReadWriteBucket(waddrmgrNamespaceKey)
-			for _, block := range blocks {
-				err = w.Manager.SetSyncedTo(ns, block)
-				if err != nil {
-					return err
-				}
-			}
 			for scope, scopedMgr := range scopedMgrs {
 				scopeState := recoveryMgr.State().StateForScope(scope)
 				err = expandScopeHorizons(ns, scopedMgr, scopeState)
@@ -755,7 +739,7 @@ func (w *Wallet) recovery(chainClient chain.Interface,
 			)
 		})
 		if err != nil {
-			return err
+			return startHeight, stopHeight, err
 		}
 
 		if len(recoveryBatch) > 0 {
@@ -769,8 +753,7 @@ func (w *Wallet) recovery(chainClient chain.Interface,
 		blocks = blocks[:0]
 		recoveryMgr.ResetBlockBatch()
 	}
-
-	return nil
+	return startHeight, stopHeight, nil
 }
 
 // recoverScopedAddresses scans a range of blocks in attempts to recover any
