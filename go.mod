@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/jrick/logrotate v1.0.0
-	github.com/lbryio/lbcd v0.22.115
+	github.com/lbryio/lbcd v0.22.118
 	github.com/lbryio/lbcutil v1.0.202
 	github.com/lightningnetwork/lnd/clock v1.1.0
 	github.com/stretchr/testify v1.7.1
